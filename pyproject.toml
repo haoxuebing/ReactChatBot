@@ -1,7 +1,7 @@
 [project]
 name = "agentscope-proj"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI + AgentScope-based LLM chat API with SSE streaming, session memory, and OpenAI-compatible format"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
