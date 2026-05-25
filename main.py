@@ -9,7 +9,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agentscope.model import OpenAIChatModel
-from agentscope.message import TextBlock
 
 load_dotenv()
 
@@ -39,6 +38,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+    stream: bool = True
 
 
 async def sse_stream(messages: list[dict]) -> AsyncGenerator[str, None]:
@@ -59,7 +59,7 @@ async def sse_stream(messages: list[dict]) -> AsyncGenerator[str, None]:
 
         if chunk.usage:
             data = json.dumps(
-                {"choices": [{"delta": {"content": ""}}], "usage": chunk.usage},
+                {"choices": [{"delta": {"content": ""}}], "usage": _usage_to_dict(chunk.usage)},
                 ensure_ascii=False,
             )
             yield f"data: {data}\n\n"
@@ -67,9 +67,30 @@ async def sse_stream(messages: list[dict]) -> AsyncGenerator[str, None]:
     yield "data: [DONE]\n\n"
 
 
+def _usage_to_dict(usage) -> dict:
+    return {
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+    }
+
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     messages = [m.model_dump() for m in request.messages]
+
+    if not request.stream:
+        full_text = ""
+        stream = await model(messages)
+        async for chunk in stream:
+            for block in chunk.content:
+                if block["type"] == "text":
+                    full_text += block["text"]
+
+        result = {
+            "choices": [{"message": {"content": full_text, "role": "assistant"}}],
+        }
+        return result
+
     return StreamingResponse(
         sse_stream(messages),
         media_type="text/event-stream",
