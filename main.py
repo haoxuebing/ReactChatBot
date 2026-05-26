@@ -7,7 +7,7 @@ from typing import AsyncGenerator
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
 from agentscope.model import OpenAIChatModel
@@ -94,6 +94,7 @@ async def save_to_memory(
 
 def _make_sse_chunk(
     chunk_id: str | None,
+    session_id: str,
     delta_content: str,
     finish_reason: str | None = None,
     usage: dict | None = None,
@@ -105,6 +106,7 @@ def _make_sse_chunk(
     }
     payload: dict[str, object] = {
         "id": chunk_id,
+        "session_id": session_id,
         "object": "chat.completion.chunk",
         "created": int(time.time()),
         "model": model.model_name,
@@ -117,6 +119,7 @@ def _make_sse_chunk(
 
 async def sse_stream(
     messages: list[dict],
+    session_id: str,
     memory: InMemoryMemory | None = None,
     user_messages: list[dict] | None = None,
 ) -> AsyncGenerator[str, None]:
@@ -136,16 +139,16 @@ async def sse_stream(
                 delta = current_text[len(prev_text):]
                 if delta:
                     has_content = True
-                    yield f"data: {_make_sse_chunk(chunk_id, delta)}\n\n"
+                    yield f"data: {_make_sse_chunk(chunk_id, session_id, delta)}\n\n"
                     prev_text = current_text
                     full_text = current_text
 
         if chunk.usage:
             usage = _usage_to_dict(chunk.usage)
-            yield f"data: {_make_sse_chunk(chunk_id, '', usage=usage)}\n\n"
+            yield f"data: {_make_sse_chunk(chunk_id, session_id, '', usage=usage)}\n\n"
 
     if has_content:
-        yield f"data: {_make_sse_chunk(chunk_id, '', finish_reason='stop')}\n\n"
+        yield f"data: {_make_sse_chunk(chunk_id, session_id, '', finish_reason='stop')}\n\n"
 
     yield "data: [DONE]\n\n"
 
@@ -188,28 +191,32 @@ async def chat(request: ChatRequest):
 
         await save_to_memory(memory, user_assistant_messages, full_text)
 
-        return {
-            "session_id": session_id,
-            "id": first_chunk_id,
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model.model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": full_text,
+        return JSONResponse(
+            content={
+                "session_id": session_id,
+                "id": first_chunk_id,
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model.model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": full_text,
+                        },
+                        "finish_reason": "stop",
                     },
-                    "finish_reason": "stop",
-                },
-            ],
-            "usage": _usage_to_dict(final_usage) if final_usage else None,
-        }
+                ],
+                "usage": _usage_to_dict(final_usage) if final_usage else None,
+            },
+            headers={"X-Session-Id": session_id},
+        )
 
     return StreamingResponse(
         sse_stream(
             full_messages,
+            session_id,
             memory=memory,
             user_messages=user_assistant_messages,
         ),
