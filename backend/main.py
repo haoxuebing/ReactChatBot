@@ -1,12 +1,23 @@
 import json
 import os
 import time
+import logging
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 from agentscope.model import OpenAIChatModel
 
@@ -103,6 +114,11 @@ async def chat(request: ChatRequest):
     if system_prompts:
         full_messages = system_prompts + full_messages
     
+    # 打印请求日志
+    logger.info(f"[API/CHAT] Session: {session_id}, Stream: {request.stream}, Messages: {len(full_messages)}")
+    if user_assistant_messages:
+        logger.info(f"[API/CHAT] User Message: {user_assistant_messages[-1]['content'][:100]}...")
+    
     # 调用智能体
     if not request.stream:
         # 非流式响应
@@ -120,6 +136,10 @@ async def chat(request: ChatRequest):
         result["session_id"] = session_id
         result["created"] = int(time.time())
         
+        # 打印响应日志
+        response_content = result["choices"][0]["message"]["content"]
+        logger.info(f"[API/CHAT] Response (non-stream): {response_content[:200]}...")
+        
         return JSONResponse(
             content=result,
             headers={"X-Session-Id": session_id},
@@ -128,10 +148,16 @@ async def chat(request: ChatRequest):
     # 流式响应
     async def streaming_response():
         full_text = ""
+        chunk_count = 0
         async for chunk in await agent.chat(full_messages, memory_backend, stream=True):
             content = chunk["choices"][0]["delta"].get("content", "")
             if content:
                 full_text += content
+                chunk_count += 1
+                # 每5个chunk或内容超过100字符打印一次日志
+                if chunk_count % 5 == 0 or len(full_text) > 100:
+                    logger.info(f"[API/CHAT] Stream chunk #{chunk_count}, Total length: {len(full_text)}")
+                    chunk_count = 0
             yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, content, chunk['choices'][0]['finish_reason'])}\n\n"
         
         # 保存到记忆
@@ -141,6 +167,9 @@ async def chat(request: ChatRequest):
                 user_assistant_messages,
                 full_text
             )
+        
+        # 打印完整响应日志
+        logger.info(f"[API/CHAT] Stream completed. Total response: {full_text[:200]}...")
         
         yield "data: [DONE]\n\n"
     

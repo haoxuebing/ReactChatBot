@@ -1,7 +1,10 @@
 const BASE_URL = 'http://localhost:8000/api'
 
-export async function chatStream(sessionId, messages, onMessage, onError, onComplete) {
-  const response = await fetch(`${BASE_URL}/chat`, {
+export function chatStream(sessionId, messages, onMessage, onError, onComplete) {
+  let isStopped = false
+  let controller = new AbortController()
+
+  const fetchPromise = fetch(`${BASE_URL}/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -11,49 +14,83 @@ export async function chatStream(sessionId, messages, onMessage, onError, onComp
       messages: messages,
       stream: true,
     }),
+    signal: controller.signal
   })
 
-  if (!response.ok) {
-    const error = await response.json()
-    onError(error.detail || '请求失败')
-    return
-  }
+  async function processStream() {
+    try {
+      const response = await fetchPromise
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-  let buffer = ''
+      if (isStopped) {
+        return
+      }
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+      if (!response.ok) {
+        const error = await response.json()
+        if (!isStopped) onError(error.detail || '请求失败')
+        return
+      }
 
-      buffer += decoder.decode(value, { stream: true })
-      
-      const lines = buffer.split('\n')
-      buffer = lines.pop()
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
 
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed) continue
-        if (!trimmed.startsWith('data: ')) continue
+      try {
+        while (!isStopped) {
+          const { done, value } = await reader.read()
+          
+          if (done || isStopped) {
+            await reader.cancel()
+            break
+          }
 
-        const data = trimmed.substring(6)
-        if (data === '[DONE]') {
-          onComplete()
-          return
+          buffer += decoder.decode(value, { stream: true })
+          
+          const lines = buffer.split('\n')
+          buffer = lines.pop()
+
+          for (const line of lines) {
+            if (isStopped) break
+            
+            const trimmed = line.trim()
+            if (!trimmed) continue
+            if (!trimmed.startsWith('data: ')) continue
+
+            const data = trimmed.substring(6)
+            if (data === '[DONE]') {
+              if (!isStopped) onComplete()
+              return
+            }
+
+            try {
+              const parsed = JSON.parse(data)
+              if (!isStopped) onMessage(parsed)
+            } catch (e) {
+              console.warn('解析消息失败:', e)
+            }
+          }
         }
-
-        try {
-          const parsed = JSON.parse(data)
-          onMessage(parsed)
-        } catch (e) {
-          console.warn('解析消息失败:', e)
-        }
+        
+        if (!isStopped) onComplete()
+      } catch (e) {
+        if (!isStopped) onError(e.message || '连接中断')
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        // 用户主动停止，不显示错误
+      } else if (!isStopped) {
+        onError(e.message || '请求失败')
       }
     }
-  } catch (e) {
-    onError(e.message || '连接中断')
+  }
+
+  processStream()
+
+  return {
+    stop: () => {
+      isStopped = true
+      controller.abort()
+    }
   }
 }
 

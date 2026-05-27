@@ -1,12 +1,32 @@
 <template>
   <div class="h-screen flex bg-gray-100">
-    <Sidebar
-      :sessions="sessions"
-      :current-session-id="currentSessionId"
-      @new-session="handleNewSession"
-      @select-session="handleSelectSession"
-      @delete-session="handleDeleteSession"
-    />
+    <div
+      class="flex flex-col transition-all duration-300 relative"
+      :class="[
+        sidebarCollapsed ? 'w-12' : 'w-72'
+      ]"
+    >
+      <Sidebar
+        :sessions="sessions"
+        :current-session-id="currentSessionId"
+        :collapsed="sidebarCollapsed"
+        @new-session="handleNewSession"
+        @select-session="handleSelectSession"
+        @delete-session="handleDeleteSession"
+      />
+      
+      <button
+        @click="sidebarCollapsed = !sidebarCollapsed"
+        class="absolute top-1/2 -translate-y-1/2 right-0 w-6 h-12 bg-gray-100 border-r border-t border-b border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+        :class="{ 'rounded-r-lg': sidebarCollapsed }"
+      >
+        <ChevronLeft
+          :size="14"
+          class="transition-transform duration-300"
+          :class="{ 'rotate-180': sidebarCollapsed }"
+        />
+      </button>
+    </div>
     
     <div class="flex-1 flex flex-col">
       <header class="h-14 bg-white border-b border-gray-200 flex items-center px-6">
@@ -25,6 +45,7 @@
         :is-loading="isLoading"
         @send-message="handleSendMessage"
         @clear-history="handleClearHistory"
+        @stop-generating="handleStopGenerating"
       />
     </div>
     
@@ -39,7 +60,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { MessageCircle } from 'lucide-vue-next'
+import { MessageCircle, ChevronLeft } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
 import { chatStream, getSessions, deleteSession } from '../services/api'
@@ -50,6 +71,8 @@ const messagesBySession = ref({})
 const isLoading = ref(false)
 const showToast = ref(false)
 const toastMessage = ref('')
+const sidebarCollapsed = ref(false)
+let currentStreamController = null
 
 const currentSession = computed(() => {
   return sessions.value.find(s => s.id === currentSessionId.value)
@@ -156,7 +179,7 @@ async function handleSendMessage(content) {
   }))
   
   try {
-    await chatStream(
+    currentStreamController = chatStream(
       sessionId,
       messagesForApi,
       (chunk) => {
@@ -211,10 +234,12 @@ async function handleSendMessage(content) {
         messagesBySession.value[sessionId].push(errorMsg)
         messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
         isLoading.value = false
+        currentStreamController = null
         showToastMessage('发送失败')
       },
       () => {
         isLoading.value = false
+        currentStreamController = null
         
         const sessionIdx = sessions.value.findIndex(s => s.id === sessionId)
         if (sessionIdx > -1) {
@@ -239,6 +264,7 @@ async function handleSendMessage(content) {
     messagesBySession.value[sessionId].push(errorMsg)
     messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
     isLoading.value = false
+    currentStreamController = null
     showToastMessage('发送失败')
   }
 }
@@ -263,5 +289,14 @@ function showToastMessage(message) {
   setTimeout(() => {
     showToast.value = false
   }, 2000)
+}
+
+function handleStopGenerating() {
+  if (currentStreamController) {
+    currentStreamController.stop()
+    currentStreamController = null
+  }
+  isLoading.value = false
+  showToastMessage('已停止生成')
 }
 </script>

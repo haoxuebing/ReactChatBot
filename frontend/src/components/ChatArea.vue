@@ -42,20 +42,30 @@
           
           <textarea
             v-model="inputMessage"
-            @keydown.enter.exact.prevent="sendMessage"
+            @keydown.enter.exact.prevent="handleSend"
             placeholder="输入消息..."
             class="flex-1 bg-transparent border-none outline-none resize-none px-2 py-2 text-gray-800 placeholder-gray-400"
             rows="1"
             ref="inputRef"
+            :disabled="isLoading"
           ></textarea>
           
           <button
-            @click="sendMessage"
-            :disabled="!inputMessage.trim() || isLoading"
+            v-if="!isLoading"
+            @click="handleSend"
+            :disabled="!inputMessage.trim()"
             class="p-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl transition-colors"
             title="发送"
           >
             <Send :size="20" />
+          </button>
+          <button
+            v-else
+            @click="$emit('stop-generating')"
+            class="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors"
+            title="停止生成"
+          >
+            <Square :size="20" />
           </button>
         </div>
         
@@ -67,34 +77,39 @@
   </div>
 </template>
 
-<script setup>import { ref, watch, nextTick } from 'vue';
-import { Send, Trash2, Bot, Sparkles } from 'lucide-vue-next';
-import MessageBubble from './MessageBubble.vue';
+<script setup>
+import { ref, watch, nextTick } from 'vue'
+import { Send, Trash2, Bot, Sparkles, Square } from 'lucide-vue-next'
+import MessageBubble from './MessageBubble.vue'
+
 const props = defineProps({
- messages: {
- type: Array,
- default: () => []
- },
- isLoading: {
- type: Boolean,
- default: false
- }
-});
-const emit = defineEmits(['send-message', 'clear-history']);
-const inputMessage = ref('');
-const messagesContainer = ref(null);
-const inputRef = ref(null);
+  messages: {
+    type: Array,
+    default: () => []
+  },
+  isLoading: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const emit = defineEmits(['send-message', 'clear-history', 'stop-generating'])
+
+const inputMessage = ref('')
+const messagesContainer = ref(null)
+const inputRef = ref(null)
+
 watch(() => props.messages.length, async () => {
- await nextTick();
- if (messagesContainer.value) {
- messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
- }
-});
-function sendMessage() {
- const content = inputMessage.value.trim();
- if (!content || props.isLoading)
- return;
- emit('send-message', content);
- inputMessage.value = '';
+  await nextTick()
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+})
+
+function handleSend() {
+  const content = inputMessage.value.trim()
+  if (!content || props.isLoading) return
+  emit('send-message', content)
+  inputMessage.value = ''
 }
 </script>
