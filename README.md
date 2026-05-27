@@ -1,6 +1,6 @@
 # AgentScope Chat API
 
-基于 FastAPI + AgentScope 构建的大模型对话接口，支持 **ReAct 智能体**（思考-行动循环）、**工具调用**、**SSE 流式响应**和**会话记忆管理**。
+基于 FastAPI + AgentScope + Vue 构建的大模型对话应用，支持 **ReAct 智能体**（思考-行动循环）、**工具调用**、**SSE 流式响应**和**会话记忆管理**。
 
 ## 功能特性
 
@@ -12,24 +12,27 @@
 - **System Prompt** — 支持在请求中传入 system 消息
 - **Token 用量统计** — 每轮返回 `usage` 信息
 - **会话管理 API** — 查看、获取、删除会话
+- **Web UI** — 基于 Vue 3 的聊天界面，支持实时流式消息展示
 
 ## 环境要求
 
 - Python >= 3.12
+- Node.js >= 18
 - uv（推荐）或 pip
 - ChromeDriver（使用 WebSearchTool 时需要）
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 安装后端依赖
 
 ```bash
+cd backend
 uv sync
 ```
 
 ### 2. 配置环境变量
 
-创建或编辑 `.env` 文件：
+在 `backend` 目录下创建或编辑 `.env` 文件：
 
 ```env
 DEEPSEEK_API_KEY=your_api_key_here
@@ -41,45 +44,84 @@ CHROMEDRIVER_PATH=C:\path\to\chromedriver.exe
 > 支持任意 OpenAI 兼容 API（OpenAI、Azure、硅基流动等），只需修改 `base_url` 和 `model_name`。
 > `CHROMEDRIVER_PATH` 仅在启用 WebSearchTool 时需要。
 
-### 3. 启动服务
+### 3. 启动后端服务
 
 ```bash
+cd backend
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 服务启动后访问：http://localhost:8000/docs（Swagger UI）
 
+### 4. 安装前端依赖
+
+```bash
+cd frontend
+npm install
+```
+
+### 5. 启动前端开发服务器
+
+```bash
+cd frontend
+npm run dev
+```
+
+前端启动后访问：http://localhost:5173
+
 ## 项目结构
 
 ```
 .
-├── main.py                  # FastAPI 应用入口，路由定义
-├── pyproject.toml           # 项目依赖配置
-├── .env                     # 环境变量（API Key 等，不提交）
+├── backend/                    # 后端代码（FastAPI + AgentScope）
+│   ├── main.py                # FastAPI 应用入口，路由定义
+│   ├── pyproject.toml         # 项目依赖配置
+│   ├── .env                   # 环境变量（API Key 等，不提交）
+│   ├── .python-version
+│   └── uv.lock
+│   │
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   └── react_agent.py     # ReAct 智能体，实现思考-行动循环
+│   │
+│   ├── schemas/
+│   │   ├── __init__.py
+│   │   ├── chat_request.py    # 聊天请求模型（含 AgentConfig）
+│   │   ├── chat_message.py    # 聊天消息模型
+│   │   └── agent_config.py    # 智能体配置（temperature、memory_limit 等）
+│   │
+│   ├── memory/
+│   │   ├── __init__.py
+│   │   ├── memory_manager.py  # 会话级记忆管理器
+│   │   └── in_memory_backend.py # 基于 AgentScope InMemoryMemory 的记忆后端
+│   │
+│   └── tools/
+│       ├── __init__.py        # 工具注册表
+│       ├── base_tool.py       # 工具基类
+│       ├── calculator_tool.py # 计算器工具（数学运算）
+│       ├── date_tool.py       # 日期工具（当前时间、格式化、加减、差值）
+│       └── web_search_tool.py # 网络搜索工具（基于 Selenium + ChromeDriver）
+│
+├── frontend/                   # 前端代码（Vue 3 + Vite）
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Layout.vue     # 主布局组件
+│   │   │   ├── Sidebar.vue    # 侧边栏（会话列表）
+│   │   │   ├── ChatArea.vue   # 聊天区域
+│   │   │   ├── MessageBubble.vue # 消息气泡
+│   │   │   └── MarkdownRenderer.vue # Markdown 渲染组件
+│   │   ├── services/
+│   │   │   └── api.js         # API 服务封装
+│   │   ├── App.vue
+│   │   ├── main.js
+│   │   └── style.css
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   └── postcss.config.js
+│
 ├── .gitignore
-├── .python-version
-│
-├── agents/
-│   ├── __init__.py
-│   └── react_agent.py       # ReAct 智能体，实现思考-行动循环
-│
-├── schemas/
-│   ├── __init__.py
-│   ├── chat_request.py      # 聊天请求模型（含 AgentConfig）
-│   ├── chat_message.py      # 聊天消息模型
-│   └── agent_config.py      # 智能体配置（temperature、memory_limit 等）
-│
-├── memory/
-│   ├── __init__.py
-│   ├── memory_manager.py    # 会话级记忆管理器
-│   └── in_memory_backend.py # 基于 AgentScope InMemoryMemory 的记忆后端
-│
-└── tools/
-    ├── __init__.py           # 工具注册表
-    ├── base_tool.py          # 工具基类
-    ├── calculator_tool.py    # 计算器工具（数学运算）
-    ├── date_tool.py          # 日期工具（当前时间、格式化、加减、差值）
-    └── web_search_tool.py    # 网络搜索工具（基于 Selenium + ChromeDriver）
+└── README.md
 ```
 
 ## 接口说明
@@ -206,10 +248,19 @@ curl -X POST http://localhost:8000/api/chat \
 
 ## 技术栈
 
+### 后端
 - [FastAPI](https://fastapi.tiangolo.com/) — Web 框架
 - [AgentScope](https://github.com/modelscope/agentscope) — 模型封装（OpenAIChatModel）与记忆存储（InMemoryMemory）
 - [Uvicorn](https://www.uvicorn.org/) — ASGI 服务器
 - [Selenium](https://www.selenium.dev/) — 浏览器自动化（WebSearchTool）
+
+### 前端
+- [Vue 3](https://vuejs.org/) — 前端框架
+- [Vite](https://vitejs.dev/) — 构建工具
+- [TailwindCSS 3](https://tailwindcss.com/) — CSS 框架
+- [Lucide Icons](https://lucide.dev/) — 图标库
+- [markdown-it](https://markdown-it.github.io/) — Markdown 渲染
+- [highlight.js](https://highlightjs.org/) — 代码高亮
 
 ## 内置工具
 
@@ -226,3 +277,4 @@ curl -X POST http://localhost:8000/api/chat \
 - **自定义工具**：继承 `BaseTool` 实现 `execute` 方法，并在 `tools/__init__.py` 中注册
 - **鉴权**：在 `/api/chat` 端点前添加 API Key 校验中间件
 - **对话历史上限**：在 `build_messages_with_history` 中限制返回的历史消息条数，控制 token 消耗
+- **深色主题**：在前端中添加深色/浅色主题切换功能
