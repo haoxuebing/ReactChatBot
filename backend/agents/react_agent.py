@@ -146,19 +146,21 @@ class ReActAgent:
             
             for block in chunk.content:
                 if block["type"] == "text":
+                    # 计算增量文本（只返回新增的部分）
+                    delta = block["text"][len(full_text):]
                     full_text = block["text"]
-                    delta = block["text"]
-                    yield {
-                        "id": chunk_id,
-                        "object": "chat.completion.chunk",
-                        "created": 0,
-                        "model": self._model.model_name,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {"content": delta},
-                            "finish_reason": None
-                        }]
-                    }
+                    if delta:
+                        yield {
+                            "id": chunk_id,
+                            "object": "chat.completion.chunk",
+                            "created": 0,
+                            "model": self._model.model_name,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": delta},
+                                "finish_reason": None
+                            }]
+                        }
         
         # 检查是否需要调用工具
         tool_call = self._extract_tool_call(full_text)

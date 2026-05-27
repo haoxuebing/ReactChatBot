@@ -150,14 +150,7 @@ async function handleSendMessage(content) {
   
   isLoading.value = true
   
-  const aiMessage = {
-    id: (Date.now() + 1).toString(),
-    role: 'assistant',
-    content: '',
-    timestamp: Date.now()
-  }
-  
-  messagesBySession.value[sessionId].push(aiMessage)
+  const aiMessageIndex = messagesBySession.value[sessionId].length
   
   const messagesForApi = messagesBySession.value[sessionId].map(m => ({
     role: m.role,
@@ -169,14 +162,32 @@ async function handleSendMessage(content) {
       sessionId,
       messagesForApi,
       (chunk) => {
-        const content = chunk.choices[0]?.delta?.content || ''
-        if (content) {
-          aiMessage.content += content
+        const deltaContent = chunk.choices[0]?.delta?.content || ''
+        if (deltaContent) {
+          if (!messagesBySession.value[sessionId][aiMessageIndex]) {
+            messagesBySession.value[sessionId][aiMessageIndex] = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: '',
+              timestamp: Date.now()
+            }
+          }
+          messagesBySession.value[sessionId][aiMessageIndex].content += deltaContent
+          messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
         }
       },
       (error) => {
         console.error('聊天错误:', error)
-        aiMessage.content = '发送失败，请重试'
+        if (!messagesBySession.value[sessionId][aiMessageIndex]) {
+          messagesBySession.value[sessionId][aiMessageIndex] = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now()
+          }
+        }
+        messagesBySession.value[sessionId][aiMessageIndex].content = '发送失败，请重试'
+        messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
         isLoading.value = false
         showToastMessage('发送失败')
       },
@@ -184,8 +195,9 @@ async function handleSendMessage(content) {
         isLoading.value = false
         
         const sessionIdx = sessions.value.findIndex(s => s.id === sessionId)
-        if (sessionIdx > -1) {
-          sessions.value[sessionIdx].lastMessage = aiMessage.content.substring(0, 20) + (aiMessage.content.length > 20 ? '...' : '')
+        if (sessionIdx > -1 && messagesBySession.value[sessionId][aiMessageIndex]) {
+          const content = messagesBySession.value[sessionId][aiMessageIndex].content
+          sessions.value[sessionIdx].lastMessage = content.substring(0, 20) + (content.length > 20 ? '...' : '')
         }
         
         showToastMessage('消息发送成功')
@@ -193,7 +205,16 @@ async function handleSendMessage(content) {
     )
   } catch (e) {
     console.error('聊天异常:', e)
-    aiMessage.content = '发送失败，请重试'
+    if (!messagesBySession.value[sessionId][aiMessageIndex]) {
+      messagesBySession.value[sessionId][aiMessageIndex] = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now()
+      }
+    }
+    messagesBySession.value[sessionId][aiMessageIndex].content = '发送失败，请重试'
+    messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
     isLoading.value = false
     showToastMessage('发送失败')
   }
