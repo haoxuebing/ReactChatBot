@@ -7,6 +7,7 @@
       ]"
     >
       <Sidebar
+        v-if="!sidebarCollapsed"
         :sessions="sessions"
         :current-session-id="currentSessionId"
         :collapsed="sidebarCollapsed"
@@ -15,15 +16,25 @@
         @delete-session="handleDeleteSession"
       />
       
+      <div
+        v-if="sidebarCollapsed"
+        class="flex-1 flex flex-col items-center justify-center bg-gray-50 border-r border-gray-200"
+      >
+        <button
+          @click="sidebarCollapsed = !sidebarCollapsed"
+          class="w-8 h-8 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center justify-center transition-colors"
+        >
+          <ChevronRight :size="16" />
+        </button>
+      </div>
+      
       <button
+        v-if="!sidebarCollapsed"
         @click="sidebarCollapsed = !sidebarCollapsed"
         class="absolute top-1/2 -translate-y-1/2 right-0 w-6 h-12 bg-gray-100 border-r border-t border-b border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
-        :class="{ 'rounded-r-lg': sidebarCollapsed }"
       >
         <ChevronLeft
           :size="14"
-          class="transition-transform duration-300"
-          :class="{ 'rotate-180': sidebarCollapsed }"
         />
       </button>
     </div>
@@ -60,7 +71,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { MessageCircle, ChevronLeft } from 'lucide-vue-next'
+import { MessageCircle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
 import { chatStream, getSessions, deleteSession } from '../services/api'
