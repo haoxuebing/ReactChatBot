@@ -42,3 +42,23 @@ class MemoryManager:
         messages_to_save.extend(user_messages)
         messages_to_save.append({"role": "assistant", "content": assistant_content})
         await backend.add_messages(messages_to_save)
+    
+    def list_sessions(self) -> list[Dict[str, Any]]:
+        """获取所有会话列表"""
+        return [
+            {"session_id": session_id, "message_count": backend.get_message_count()}
+            for session_id, backend in self._sessions.items()
+        ]
+    
+    async def get_session(self, session_id: str) -> Dict[str, Any]:
+        """获取指定会话的详细信息（包含对话内容）"""
+        backend = self._sessions.get(session_id)
+        if not backend:
+            return {"error": f"Session '{session_id}' not found"}
+        
+        history = await backend.get_history()
+        return {
+            "session_id": session_id,
+            "message_count": backend.get_message_count(),
+            "messages": history,
+        }
