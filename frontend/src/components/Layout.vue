@@ -150,8 +150,6 @@ async function handleSendMessage(content) {
   
   isLoading.value = true
   
-  const aiMessageIndex = messagesBySession.value[sessionId].length
-  
   const messagesForApi = messagesBySession.value[sessionId].map(m => ({
     role: m.role,
     content: m.content
@@ -162,31 +160,55 @@ async function handleSendMessage(content) {
       sessionId,
       messagesForApi,
       (chunk) => {
-        const deltaContent = chunk.choices[0]?.delta?.content || ''
-        if (deltaContent) {
-          if (!messagesBySession.value[sessionId][aiMessageIndex]) {
-            messagesBySession.value[sessionId][aiMessageIndex] = {
-              id: (Date.now() + 1).toString(),
+        const delta = chunk.choices[0]?.delta || {}
+        const deltaContent = delta.content || ''
+        const thinking = delta.thinking
+        const toolCall = delta.tool_call
+        
+        if (thinking) {
+          const thinkingMsg = {
+            id: Date.now().toString(),
+            role: 'thinking',
+            content: thinking,
+            timestamp: Date.now()
+          }
+          messagesBySession.value[sessionId].push(thinkingMsg)
+          messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
+        } else if (toolCall) {
+          const toolMsg = {
+            id: Date.now().toString(),
+            role: 'tool',
+            content: '',
+            toolCall: toolCall,
+            timestamp: Date.now()
+          }
+          messagesBySession.value[sessionId].push(toolMsg)
+          messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
+        } else if (deltaContent) {
+          const lastMsg = messagesBySession.value[sessionId][messagesBySession.value[sessionId].length - 1]
+          if (lastMsg && lastMsg.role === 'assistant') {
+            lastMsg.content += deltaContent
+          } else {
+            const aiMsg = {
+              id: Date.now().toString(),
               role: 'assistant',
-              content: '',
+              content: deltaContent,
               timestamp: Date.now()
             }
+            messagesBySession.value[sessionId].push(aiMsg)
           }
-          messagesBySession.value[sessionId][aiMessageIndex].content += deltaContent
           messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
         }
       },
       (error) => {
         console.error('聊天错误:', error)
-        if (!messagesBySession.value[sessionId][aiMessageIndex]) {
-          messagesBySession.value[sessionId][aiMessageIndex] = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: '',
-            timestamp: Date.now()
-          }
+        const errorMsg = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: '发送失败，请重试',
+          timestamp: Date.now()
         }
-        messagesBySession.value[sessionId][aiMessageIndex].content = '发送失败，请重试'
+        messagesBySession.value[sessionId].push(errorMsg)
         messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
         isLoading.value = false
         showToastMessage('发送失败')
@@ -195,9 +217,12 @@ async function handleSendMessage(content) {
         isLoading.value = false
         
         const sessionIdx = sessions.value.findIndex(s => s.id === sessionId)
-        if (sessionIdx > -1 && messagesBySession.value[sessionId][aiMessageIndex]) {
-          const content = messagesBySession.value[sessionId][aiMessageIndex].content
-          sessions.value[sessionIdx].lastMessage = content.substring(0, 20) + (content.length > 20 ? '...' : '')
+        if (sessionIdx > -1) {
+          const messages = messagesBySession.value[sessionId]
+          const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant')
+          if (lastAssistantMsg) {
+            sessions.value[sessionIdx].lastMessage = lastAssistantMsg.content.substring(0, 20) + (lastAssistantMsg.content.length > 20 ? '...' : '')
+          }
         }
         
         showToastMessage('消息发送成功')
@@ -205,15 +230,13 @@ async function handleSendMessage(content) {
     )
   } catch (e) {
     console.error('聊天异常:', e)
-    if (!messagesBySession.value[sessionId][aiMessageIndex]) {
-      messagesBySession.value[sessionId][aiMessageIndex] = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now()
-      }
+    const errorMsg = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: '发送失败，请重试',
+      timestamp: Date.now()
     }
-    messagesBySession.value[sessionId][aiMessageIndex].content = '发送失败，请重试'
+    messagesBySession.value[sessionId].push(errorMsg)
     messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
     isLoading.value = false
     showToastMessage('发送失败')

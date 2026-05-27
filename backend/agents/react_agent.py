@@ -165,7 +165,7 @@ class ReActAgent:
         # 检查是否需要调用工具
         tool_call = self._extract_tool_call(full_text)
         if tool_call and "name" in tool_call:
-            # 通知客户端即将调用工具
+            # 发送思考信息
             yield {
                 "id": chunk_id,
                 "object": "chat.completion.chunk",
@@ -173,16 +173,11 @@ class ReActAgent:
                 "model": self._model.model_name,
                 "choices": [{
                     "index": 0,
-                    "delta": {"content": f"正在调用工具: {tool_call['name']}"},
-                    "finish_reason": None,
-                    "tool_calls": [{
-                        "id": "tool_0",
-                        "type": "function",
-                        "function": {
-                            "name": tool_call["name"],
-                            "arguments": tool_call.get("arguments", {})
-                        }
-                    }]
+                    "delta": {
+                        "content": "",
+                        "thinking": f"我需要调用工具来获取信息。用户的问题需要使用 {tool_call['name']} 工具来回答。"
+                    },
+                    "finish_reason": None
                 }]
             }
             
@@ -191,6 +186,26 @@ class ReActAgent:
                 tool_call["name"],
                 tool_call.get("arguments", {})
             )
+            
+            # 发送工具调用信息
+            yield {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": self._model.model_name,
+                "choices": [{
+                    "index": 0,
+                    "delta": {
+                        "content": "",
+                        "tool_call": {
+                            "name": tool_call["name"],
+                            "arguments": tool_call.get("arguments", {}),
+                            "result": tool_result
+                        }
+                    },
+                    "finish_reason": None
+                }]
+            }
             
             # 将工具结果作为系统消息添加到对话中
             messages.append({
