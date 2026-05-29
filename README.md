@@ -49,6 +49,8 @@ CHROMEDRIVER_PATH=C:\path\to\chromedriver.exe
 ```bash
 cd backend
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# 或者
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 服务启动后访问：http://localhost:8000/docs（Swagger UI）
