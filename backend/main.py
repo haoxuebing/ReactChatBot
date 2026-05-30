@@ -56,18 +56,15 @@ agent = ReActAgent(model)
 def _make_sse_chunk(
     chunk_id: str | None,
     session_id: str,
-    delta_content: str,
+    delta: dict,
     finish_reason: str | None = None,
-    tool_calls: list | None = None,
 ) -> str:
     """生成SSE数据块"""
     choice: dict[str, object] = {
         "index": 0,
-        "delta": {"content": delta_content} if delta_content else {},
+        "delta": delta,
         "finish_reason": finish_reason,
     }
-    if tool_calls:
-        choice["tool_calls"] = tool_calls
     
     payload: dict[str, object] = {
         "id": chunk_id,
@@ -86,12 +83,9 @@ async def sse_stream_wrapper(
 ) -> AsyncGenerator[str, None]:
     """SSE流包装器"""
     async for chunk in agent_stream:
-        chunk_id = chunk.get("id")
-        delta_content = chunk["choices"][0]["delta"].get("content", "")
-        finish_reason = chunk["choices"][0]["finish_reason"]
-        tool_calls = chunk["choices"][0].get("tool_calls")
-        
-        yield f"data: {_make_sse_chunk(chunk_id, session_id, delta_content, finish_reason, tool_calls)}\n\n"
+        choice = chunk["choices"][0]
+        delta = choice.get("delta", {})
+        yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, delta, choice.get('finish_reason'))}\n\n"
     
     yield "data: [DONE]\n\n"
 
@@ -150,26 +144,30 @@ async def chat(request: ChatRequest):
         full_text = ""
         chunk_count = 0
         async for chunk in await agent.chat(full_messages, memory_backend, stream=True):
-            content = chunk["choices"][0]["delta"].get("content", "")
-            if content:
+            choice = chunk["choices"][0]
+            delta = choice.get("delta", {})
+            content = delta.get("content", "")
+            if content and not delta.get("content_reset"):
                 full_text += content
                 chunk_count += 1
-                # 每5个chunk或内容超过100字符打印一次日志
                 if chunk_count % 5 == 0 or len(full_text) > 100:
                     logger.info(f"[API/CHAT] Stream chunk #{chunk_count}, Total length: {len(full_text)}")
                     chunk_count = 0
-            yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, content, chunk['choices'][0]['finish_reason'])}\n\n"
+            yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, delta, choice.get('finish_reason'))}\n\n"
         
-        # 保存到记忆
+        # 保存到记忆（过滤误输出的工具 JSON）
         if full_text:
-            await memory_manager.save_to_memory(
-                memory_backend,
-                user_assistant_messages,
-                full_text
-            )
+            saved_text = agent._strip_tool_call_text(full_text) or full_text
+            if not saved_text.strip().startswith("{"):
+                await memory_manager.save_to_memory(
+                    memory_backend,
+                    user_assistant_messages,
+                    saved_text,
+                )
         
         # 打印完整响应日志
-        logger.info(f"[API/CHAT] Stream completed. Total response: {full_text[:200]}...")
+        log_text = agent._strip_tool_call_text(full_text) or full_text
+        logger.info(f"[API/CHAT] Stream completed. Total response: {log_text[:200]}...")
         
         yield "data: [DONE]\n\n"
     

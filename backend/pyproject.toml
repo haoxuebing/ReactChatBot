@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "agentscope>=1.0.20",
     "fastapi>=0.136.3",
-    "selenium>=4.44.0",
     "uvicorn>=0.48.0",
+    "httpx>=0.28.0",
+    "beautifulsoup4>=4.12.0",
 ]

@@ -19,7 +19,7 @@
 - Python >= 3.12
 - Node.js >= 18
 - uv（推荐）或 pip
-- ChromeDriver（使用 WebSearchTool 时需要）
+- 可访问 `cn.bing.com`（使用 WebSearchTool 时需要）
 
 ## 快速开始
 
@@ -38,11 +38,9 @@ uv sync
 DEEPSEEK_API_KEY=your_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-flash
-CHROMEDRIVER_PATH=C:\path\to\chromedriver.exe
 ```
 
 > 支持任意 OpenAI 兼容 API（OpenAI、Azure、硅基流动等），只需修改 `base_url` 和 `model_name`。
-> `CHROMEDRIVER_PATH` 仅在启用 WebSearchTool 时需要。
 
 ### 3. 启动后端服务
 
@@ -102,7 +100,8 @@ npm run dev
 │       ├── base_tool.py       # 工具基类
 │       ├── calculator_tool.py # 计算器工具（数学运算）
 │       ├── date_tool.py       # 日期工具（当前时间、格式化、加减、差值）
-│       └── web_search_tool.py # 网络搜索工具（基于 Selenium + ChromeDriver）
+│       ├── web_search_tool.py # 网络搜索工具（必应中文搜索）
+│       └── bing_client.py     # 必应搜索与网页抓取客户端
 │
 ├── frontend/                   # 前端代码（Vue 3 + Vite）
 │   ├── src/
@@ -254,7 +253,8 @@ curl -X POST http://localhost:8000/api/chat \
 - [FastAPI](https://fastapi.tiangolo.com/) — Web 框架
 - [AgentScope](https://github.com/modelscope/agentscope) — 模型封装（OpenAIChatModel）与记忆存储（InMemoryMemory）
 - [Uvicorn](https://www.uvicorn.org/) — ASGI 服务器
-- [Selenium](https://www.selenium.dev/) — 浏览器自动化（WebSearchTool）
+- [httpx](https://www.python-httpx.org/) — HTTP 客户端（必应搜索）
+- [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/) — HTML 解析（搜索结果与网页抓取）
 
 ### 前端
 - [Vue 3](https://vuejs.org/) — 前端框架
@@ -270,7 +270,7 @@ curl -X POST http://localhost:8000/api/chat \
 |---|---|---|
 | 计算器 | `calculator` | 数学运算，支持加减乘除、幂运算、开方、三角函数等 |
 | 日期工具 | `date_tool` | 获取当前时间、日期格式化、日期加减、日期差计算 |
-| 网络搜索 | `web_search` | 基于 Selenium + ChromeDriver 的互联网搜索 |
+| 网络搜索 | `web_search` | 必应中文搜索，自动抓取 Top 结果正文，无需 API Key |
 
 ## 扩展建议
 

@@ -75,6 +75,7 @@ import { MessageCircle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
 import { chatStream, getSessions, deleteSession } from '../services/api'
+import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolContent } from '../utils/messageUtils'
 
 const sessions = ref([])
 const currentSessionId = ref(null)
@@ -184,10 +185,7 @@ async function handleSendMessage(content) {
   
   isLoading.value = true
   
-  const messagesForApi = messagesBySession.value[sessionId].map(m => ({
-    role: m.role,
-    content: m.content
-  }))
+  const messagesForApi = [{ role: 'user', content }]
   
   try {
     currentStreamController = chatStream(
@@ -198,40 +196,44 @@ async function handleSendMessage(content) {
         const deltaContent = delta.content || ''
         const thinking = delta.thinking
         const toolCall = delta.tool_call
-        
+        const contentReset = delta.content_reset
+        const messages = messagesBySession.value[sessionId]
+
+        if (contentReset) {
+          stripLeakedToolContent(messages)
+          messagesBySession.value[sessionId] = [...messages]
+          return
+        }
+
         if (thinking) {
-          const thinkingMsg = {
-            id: Date.now().toString(),
-            role: 'thinking',
-            content: thinking,
-            timestamp: Date.now()
-          }
-          messagesBySession.value[sessionId].push(thinkingMsg)
-          messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
+          stripLeakedToolContent(messages)
+          upsertThinkingMessage(messages, thinking)
+          messagesBySession.value[sessionId] = [...messages]
         } else if (toolCall) {
-          const toolMsg = {
-            id: Date.now().toString(),
-            role: 'tool',
-            content: '',
-            toolCall: toolCall,
-            timestamp: Date.now()
-          }
-          messagesBySession.value[sessionId].push(toolMsg)
-          messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
+          stripLeakedToolContent(messages)
+          upsertToolMessage(messages, toolCall)
+          messagesBySession.value[sessionId] = [...messages]
         } else if (deltaContent) {
-          const lastMsg = messagesBySession.value[sessionId][messagesBySession.value[sessionId].length - 1]
+          if (shouldSuppressContentDelta(deltaContent)) return
+
+          const lastMsg = messages[messages.length - 1]
+          const merged = lastMsg?.role === 'assistant'
+            ? lastMsg.content + deltaContent
+            : deltaContent
+          const cleanContent = sanitizeAssistantContent(merged)
+          if (!cleanContent) return
+
           if (lastMsg && lastMsg.role === 'assistant') {
-            lastMsg.content += deltaContent
+            lastMsg.content = cleanContent
           } else {
-            const aiMsg = {
+            messages.push({
               id: Date.now().toString(),
               role: 'assistant',
-              content: deltaContent,
+              content: cleanContent,
               timestamp: Date.now()
-            }
-            messagesBySession.value[sessionId].push(aiMsg)
+            })
           }
-          messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
+          messagesBySession.value[sessionId] = [...messages]
         }
       },
       (error) => {
@@ -251,10 +253,26 @@ async function handleSendMessage(content) {
       () => {
         isLoading.value = false
         currentStreamController = null
+
+        const messages = messagesBySession.value[sessionId]
+        cleanupMessages(messages)
+
+        const hasAssistant = messages.some(
+          m => m.role === 'assistant' && sanitizeAssistantContent(m.content)
+        )
+        if (!hasAssistant && !messages.some(m => m.role === 'thinking' || m.role === 'tool')) {
+          messages.push({
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: '抱歉，未能生成完整回答，请重试。',
+            timestamp: Date.now()
+          })
+        }
+
+        messagesBySession.value[sessionId] = [...messages]
         
         const sessionIdx = sessions.value.findIndex(s => s.id === sessionId)
         if (sessionIdx > -1) {
-          const messages = messagesBySession.value[sessionId]
           const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant')
           if (lastAssistantMsg) {
             sessions.value[sessionIdx].lastMessage = lastAssistantMsg.content.substring(0, 20) + (lastAssistantMsg.content.length > 20 ? '...' : '')
@@ -291,6 +309,29 @@ function handleClearHistory() {
     
     showToastMessage('历史记录已清空')
   }
+}
+
+function upsertThinkingMessage(messages, content) {
+  messages.push({
+    id: `thinking-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    role: 'thinking',
+    content,
+    timestamp: Date.now()
+  })
+}
+
+function upsertToolMessage(messages, toolCall) {
+  messages.push({
+    id: `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    role: 'tool',
+    content: '',
+    toolCall,
+    timestamp: Date.now()
+  })
+}
+
+function cleanupMessages(messages) {
+  stripLeakedToolContent(messages)
 }
 
 function showToastMessage(message) {

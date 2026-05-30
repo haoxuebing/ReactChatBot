@@ -9,24 +9,10 @@
     </div>
     
     <div v-else ref="messagesContainer" class="flex-1 overflow-y-auto p-6">
-      <MessageBubble
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-      />
-      
-      <div v-if="isLoading" class="flex gap-3">
-        <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white">
-          <Bot :size="18" />
-        </div>
-        <div class="bg-gray-100 px-4 py-3 rounded-2xl rounded-tl-sm">
-          <div class="flex gap-1">
-            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
-          </div>
-        </div>
-      </div>
+      <template v-for="message in displayMessages" :key="message.id">
+        <AgentTurnBubble v-if="message.role === 'agent_turn'" :message="message" />
+        <MessageBubble v-else :message="message" />
+      </template>
     </div>
     
     <div class="border-t border-gray-200 p-4">
@@ -78,9 +64,11 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
-import { Send, Trash2, Bot, Sparkles, Square } from 'lucide-vue-next'
+import { ref, watch, nextTick, computed } from 'vue'
+import { Send, Trash2, Sparkles, Square } from 'lucide-vue-next'
 import MessageBubble from './MessageBubble.vue'
+import AgentTurnBubble from './AgentTurnBubble.vue'
+import { groupMessagesForDisplay } from '../utils/messageUtils'
 
 const props = defineProps({
   messages: {
@@ -93,18 +81,25 @@ const props = defineProps({
   }
 })
 
+const displayMessages = computed(() =>
+  groupMessagesForDisplay(props.messages, { isLoading: props.isLoading })
+)
+
 const emit = defineEmits(['send-message', 'clear-history', 'stop-generating'])
 
 const inputMessage = ref('')
 const messagesContainer = ref(null)
 const inputRef = ref(null)
 
-watch(() => props.messages.length, async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+watch(
+  () => [displayMessages.value.length, props.isLoading, props.messages.at(-1)?.content],
+  async () => {
+    await nextTick()
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
   }
-})
+)
 
 function handleSend() {
   const content = inputMessage.value.trim()

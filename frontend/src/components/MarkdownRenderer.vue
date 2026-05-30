@@ -18,17 +18,18 @@ const props = defineProps({
 })
 
 const md = markdownit({
-  highlight: function (str, lang) {
+  html: false,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+  highlight(str, lang) {
     if (lang && hljs.getLanguage(lang)) {
       try {
         return hljs.highlight(str, { language: lang }).value
-      } catch (__) {}
+      } catch (_) {}
     }
     return ''
   },
-  html: true,
-  linkify: true,
-  typographer: true
 })
 
 const renderedContent = computed(() => {

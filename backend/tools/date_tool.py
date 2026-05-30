@@ -15,7 +15,7 @@ class DateTool(BaseTool):
         },
         "date_str": {
             "type": "string",
-            "description": "日期字符串，格式如 '2024-01-15' 或 '2024-01-15 10:30:00'"
+            "description": "日期字符串，格式如 '2024-01-15'；add 操作时可省略，默认以今天为基准"
         },
         "format_str": {
             "type": "string",
@@ -75,12 +75,10 @@ class DateTool(BaseTool):
     def _add_days(self, kwargs) -> str:
         date_str = kwargs.get("date_str")
         days = kwargs.get("days", 0)
-        
+
         if not date_str:
-            return "错误：请提供日期字符串"
-        
-        try:
-            # 尝试解析日期
+            dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
             dt = None
             for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"]:
                 try:
@@ -88,10 +86,10 @@ class DateTool(BaseTool):
                     break
                 except ValueError:
                     continue
-            
             if dt is None:
                 return f"错误：无法解析日期 '{date_str}'"
-            
+
+        try:
             result_dt = dt + timedelta(days=days)
             return (
                 f"原日期：{dt.strftime('%Y-%m-%d')}\n"
