@@ -41,11 +41,11 @@ app.add_middleware(
 
 # 初始化核心组件
 model = OpenAIChatModel(
-    model_name=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    model_name=os.getenv("LLM_MODEL", "deepseek-v4-flash"),
+    api_key=os.getenv("LLM_API_KEY"),
     stream=True,
     client_kwargs={
-        "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        "base_url": os.getenv("LLM_BASE_URL", "https://api.deepseek.com"),
     },
 )
 
