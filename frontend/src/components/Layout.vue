@@ -380,16 +380,15 @@ async function handleSendMessage(content) {
           const merged = lastMsg?.role === 'assistant'
             ? lastMsg.content + deltaContent
             : deltaContent
-          const cleanContent = sanitizeAssistantContent(merged)
-          if (!cleanContent) return
 
+          // 流式阶段只做拼接，不做 trim/清洗，避免吃掉行尾换行导致代码挤在一行
           if (lastMsg && lastMsg.role === 'assistant') {
-            lastMsg.content = cleanContent
+            lastMsg.content = merged
           } else {
             messages.push({
               id: Date.now().toString(),
               role: 'assistant',
-              content: cleanContent,
+              content: merged,
               timestamp: Date.now()
             })
           }

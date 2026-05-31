@@ -77,7 +77,12 @@ function formatIsoDateRangeIntro(text) {
 export function formatAssistantMarkdown(content) {
   if (!content) return ''
 
-  const normalized = content.replace(/\r\n/g, '\n').trim()
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+
+  // 含代码块的内容不做天气/标题类二次格式化，避免破坏代码结构
+  if (/```/.test(normalized)) {
+    return normalized
+  }
 
   return preserveCodeBlocks(normalized, (text) => {
     text = text.replace(/\s*---+\s*/g, '\n\n---\n\n')

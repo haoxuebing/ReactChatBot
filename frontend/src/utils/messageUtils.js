@@ -113,7 +113,8 @@ const INCOMPLETE_JSON_RE = /^\s*\{[\s\S]*$/
 
 export function sanitizeAssistantContent(content) {
   if (!content) return ''
-  let cleaned = content.replace(TOOL_CALL_BLOCK_RE, '')
+  let cleaned = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  cleaned = cleaned.replace(TOOL_CALL_BLOCK_RE, '')
   cleaned = cleaned.replace(TOOL_CALL_JSON_RE, '')
   if (PARTIAL_TOOL_JSON_RE.test(cleaned.trim())) {
     cleaned = ''
@@ -126,8 +127,9 @@ export function sanitizeAssistantContent(content) {
 
 export function shouldSuppressContentDelta(delta) {
   if (!delta) return true
+  // 保留仅含空白/换行的 chunk，否则代码换行会在流式拼接时丢失
+  if (/^\s+$/.test(delta)) return false
   const trimmed = delta.trim()
-  if (!trimmed) return true
   if (trimmed.startsWith('{') || trimmed.startsWith('```')) return true
   return false
 }

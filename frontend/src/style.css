@@ -139,6 +139,7 @@ body {
   overflow-x: auto;
   margin-bottom: 0.5rem;
   max-width: 100%;
+  white-space: pre;
 }
 
 @media (min-width: 768px) {
@@ -151,6 +152,11 @@ body {
   background-color: transparent;
   padding: 0;
   color: inherit;
+  white-space: pre;
+  display: block;
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 
 .markdown-content a {
@@ -165,10 +171,10 @@ body {
 }
 
 /* 代码高亮样式 */
-.hljs {
-  background: #1f2937 !important;
-  padding: 1rem;
-  border-radius: 0.5rem;
+.markdown-content pre .hljs {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0;
 }
 
 .hljs-keyword,
