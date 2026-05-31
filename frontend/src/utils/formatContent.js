@@ -16,11 +16,30 @@ const WEATHER_METRIC_LINE_RE = new RegExp(
 const ISO_DATE_TITLE_RE =
   /(\d{4}-\d{2}-\d{2})(?:[（(]([^）)\n]+)[）)])?/g
 
+const CODE_BLOCK_PLACEHOLDER = (index) => `\x00CODEBLOCK${index}\x00`
+
+function preserveCodeBlocks(text, transform) {
+  const blocks = []
+  const stripped = text.replace(/```[\s\S]*?```/g, (block) => {
+    const index = blocks.length
+    blocks.push(block)
+    return CODE_BLOCK_PLACEHOLDER(index)
+  })
+
+  let result = transform(stripped)
+  blocks.forEach((block, index) => {
+    result = result.replace(CODE_BLOCK_PLACEHOLDER(index), () => block)
+  })
+  return result
+}
+
 function splitInlineHeaders(text) {
-  return text.replace(/\s*#{1,3}\s+/g, (match) => {
+  let result = text.replace(/(^|\n)(#{1,3})([^\s#\n])/gm, '$1$2 $3')
+  result = result.replace(/\s*#{1,3}\s+/g, (match) => {
     const level = (match.match(/#/g) || []).length
     return `\n\n${'#'.repeat(level)} `
   })
+  return result
 }
 
 function promoteDateTitles(text) {
@@ -58,46 +77,48 @@ function formatIsoDateRangeIntro(text) {
 export function formatAssistantMarkdown(content) {
   if (!content) return ''
 
-  let text = content.replace(/\r\n/g, '\n').trim()
+  const normalized = content.replace(/\r\n/g, '\n').trim()
 
-  text = text.replace(/\s*---+\s*/g, '\n\n---\n\n')
+  return preserveCodeBlocks(normalized, (text) => {
+    text = text.replace(/\s*---+\s*/g, '\n\n---\n\n')
 
-  text = splitInlineHeaders(text)
-  text = promoteDateTitles(text)
-  text = formatIsoDateRangeIntro(text)
+    text = splitInlineHeaders(text)
+    text = promoteDateTitles(text)
+    text = formatIsoDateRangeIntro(text)
 
-  text = text.replace(
-    /([：:]\s*)(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
-    '$1\n\n### $2\n\n'
-  )
-  text = text.replace(
-    /([。！？；\n])\s*(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
-    '$1\n\n### $2\n\n'
-  )
-  text = text.replace(/^(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/m, '### $1\n\n')
+    text = text.replace(
+      /([：:]\s*)(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
+      '$1\n\n### $2\n\n'
+    )
+    text = text.replace(
+      /([。！？；\n])\s*(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
+      '$1\n\n### $2\n\n'
+    )
+    text = text.replace(/^(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/m, '### $1\n\n')
 
-  text = text.replace(
-    /([。！？；\n])\s*(\d{4}年\d{1,2}月\d{1,2}日)/g,
-    '$1\n\n### $2\n\n'
-  )
+    text = text.replace(
+      /([。！？；\n])\s*(\d{4}年\d{1,2}月\d{1,2}日)/g,
+      '$1\n\n### $2\n\n'
+    )
 
-  text = splitWeatherMetrics(text)
-  text = formatSummarySections(text)
+    text = splitWeatherMetrics(text)
+    text = formatSummarySections(text)
 
-  text = text.replace(/([。；！？\n])\s*(?=[🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈])/g, '$1\n')
-  text = text.replace(EMOJI_ITEM_RE, (match) => {
-    return match.startsWith('- ') ? match : `- ${match.trim()}`
+    text = text.replace(/([。；！？\n])\s*(?=[🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈])/g, '$1\n')
+    text = text.replace(EMOJI_ITEM_RE, (match) => {
+      return match.startsWith('- ') ? match : `- ${match.trim()}`
+    })
+
+    text = text.replace(
+      /([。！？\n])\s*((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g,
+      '$1\n\n**$2**\n\n'
+    )
+    text = text.replace(/\s+((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g, '\n\n**$1**\n\n')
+
+    text = text.replace(/\n{3,}/g, '\n\n')
+
+    return text.trim()
   })
-
-  text = text.replace(
-    /([。！？\n])\s*((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g,
-    '$1\n\n**$2**\n\n'
-  )
-  text = text.replace(/\s+((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g, '\n\n**$1**\n\n')
-
-  text = text.replace(/\n{3,}/g, '\n\n')
-
-  return text.trim()
 }
 
 /** @internal test helper */

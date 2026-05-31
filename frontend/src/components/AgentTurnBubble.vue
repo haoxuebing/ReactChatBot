@@ -23,7 +23,16 @@
       </div>
 
       <div v-if="displayContent" class="pt-2 text-gray-800">
-        <MarkdownRenderer :content="displayContent" class="markdown-content" />
+        <div
+          v-if="isStreaming"
+          class="markdown-content whitespace-pre-wrap"
+        >{{ streamingContent }}</div>
+        <MarkdownRenderer
+          v-else
+          :content="displayContent"
+          :render-key="displayContent"
+          class="markdown-content"
+        />
       </div>
     </div>
   </div>
@@ -42,6 +51,15 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  isStreaming: {
+    type: Boolean,
+    default: false,
+  },
+})
+
+const streamingContent = computed(() => {
+  if (!props.message.assistant?.content) return ''
+  return sanitizeAssistantContent(props.message.assistant.content)
 })
 
 const displayContent = computed(() => {

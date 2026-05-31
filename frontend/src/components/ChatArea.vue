@@ -10,9 +10,17 @@
     </div>
 
     <div v-else ref="messagesContainer" class="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
-      <template v-for="message in displayMessages" :key="message.id">
-        <AgentTurnBubble v-if="message.role === 'agent_turn'" :message="message" />
-        <MessageBubble v-else :message="message" />
+      <template v-for="(message, index) in displayMessages" :key="message.id">
+        <AgentTurnBubble
+          v-if="message.role === 'agent_turn'"
+          :message="message"
+          :is-streaming="isLoading && index === displayMessages.length - 1"
+        />
+        <MessageBubble
+          v-else
+          :message="message"
+          :is-streaming="isLoading && index === displayMessages.length - 1"
+        />
       </template>
     </div>
     

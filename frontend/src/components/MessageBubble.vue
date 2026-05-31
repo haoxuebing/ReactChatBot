@@ -33,9 +33,14 @@
         {{ message.content }}
       </div>
 
+      <div
+        v-else-if="displayContent && isStreaming"
+        class="markdown-content whitespace-pre-wrap"
+      >{{ streamingContent }}</div>
       <MarkdownRenderer
         v-else-if="displayContent"
         :content="displayContent"
+        :render-key="displayContent"
         class="markdown-content"
       />
     </div>
@@ -53,7 +58,16 @@ const props = defineProps({
   message: {
     type: Object,
     required: true
-  }
+  },
+  isStreaming: {
+    type: Boolean,
+    default: false,
+  },
+})
+
+const streamingContent = computed(() => {
+  if (props.message.role !== 'assistant') return props.message.content
+  return sanitizeAssistantContent(props.message.content)
 })
 
 const displayContent = computed(() => {

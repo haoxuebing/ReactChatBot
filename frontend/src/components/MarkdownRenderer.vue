@@ -1,5 +1,6 @@
 <template>
   <div
+    :key="renderKey"
     v-html="renderedContent"
     class="markdown-content"
   ></div>
@@ -12,6 +13,10 @@ import hljs from 'highlight.js'
 
 const props = defineProps({
   content: {
+    type: String,
+    default: ''
+  },
+  renderKey: {
     type: String,
     default: ''
   }
