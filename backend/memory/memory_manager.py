@@ -1,7 +1,9 @@
+import json
 import uuid
-from typing import Dict, Any, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from .in_memory_backend import InMemoryBackend
+from .file_backend import FileBackend
 
 
 def normalize_username(username: Optional[str]) -> str:
@@ -9,12 +11,52 @@ def normalize_username(username: Optional[str]) -> str:
 
 
 class MemoryManager:
-    """记忆管理器，负责会话级别的记忆管理"""
+    """记忆管理器，负责会话级别的记忆管理（文件持久化）"""
 
-    def __init__(self):
-        self._sessions: Dict[str, InMemoryBackend] = {}
+    def __init__(self, data_dir: str | Path | None = None):
+        if data_dir is None:
+            data_dir = Path(__file__).resolve().parent.parent / "data" / "chat_memory"
+        self._data_dir = Path(data_dir)
+        self._data_dir.mkdir(parents=True, exist_ok=True)
+        self._sessions_dir = self._data_dir / "sessions"
+        self._sessions_dir.mkdir(parents=True, exist_ok=True)
+        self._index_path = self._data_dir / "index.json"
+        self._sessions: Dict[str, FileBackend] = {}
         self._session_usernames: Dict[str, str] = {}
         self._usernames: set[str] = set()
+        self._load_index()
+
+    def _load_index(self) -> None:
+        if not self._index_path.exists():
+            return
+        with open(self._index_path, encoding="utf-8") as f:
+            data = json.load(f)
+        self._usernames = set(data.get("usernames", []))
+        self._session_usernames = dict(data.get("session_usernames", {}))
+
+    def _save_index(self) -> None:
+        payload = {
+            "usernames": sorted(self._usernames),
+            "session_usernames": self._session_usernames,
+        }
+        tmp_path = self._index_path.with_suffix(".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        tmp_path.replace(self._index_path)
+
+    def _session_file_exists(self, session_id: str) -> bool:
+        return (self._sessions_dir / f"{session_id}.json").exists()
+
+    def _get_backend(self, session_id: str) -> FileBackend:
+        if session_id not in self._sessions:
+            self._sessions[session_id] = FileBackend(session_id, self._data_dir)
+        return self._sessions[session_id]
+
+    def _iter_session_ids(self) -> set[str]:
+        ids = set(self._session_usernames.keys())
+        for path in self._sessions_dir.glob("*.json"):
+            ids.add(path.stem)
+        return ids
 
     def register_username(self, username: str) -> str:
         """注册用户名，已存在则直接返回"""
@@ -22,6 +64,7 @@ class MemoryManager:
         if not normalized:
             raise ValueError("用户名不能为空")
         self._usernames.add(normalized)
+        self._save_index()
         return normalized
 
     def list_usernames(self) -> list[str]:
@@ -46,6 +89,7 @@ class MemoryManager:
             raise ValueError("用户名不能为空")
         self.register_username(normalized)
         self._session_usernames[session_id] = normalized
+        self._save_index()
 
     def get_session_username(self, session_id: str) -> Optional[str]:
         return self._session_usernames.get(session_id)
@@ -54,22 +98,24 @@ class MemoryManager:
         self,
         session_id: Optional[str] = None,
         username: Optional[str] = None,
-    ) -> tuple[str, InMemoryBackend]:
+    ) -> tuple[str, FileBackend]:
         """获取或创建会话记忆"""
-        if session_id and session_id in self._sessions:
+        if session_id and (
+            session_id in self._sessions or self._session_file_exists(session_id)
+        ):
             if username:
                 self.bind_session(username, session_id)
-            return session_id, self._sessions[session_id]
+            return session_id, self._get_backend(session_id)
 
         new_id = session_id or uuid.uuid4().hex[:12]
-        self._sessions[new_id] = InMemoryBackend()
+        self._sessions[new_id] = FileBackend(new_id, self._data_dir)
         if username:
             self.bind_session(username, new_id)
         return new_id, self._sessions[new_id]
 
     async def build_messages_with_history(
         self,
-        backend: InMemoryBackend,
+        backend: FileBackend,
         new_messages: list[Dict[str, Any]],
     ) -> list[Dict[str, Any]]:
         """构建包含历史记录的完整消息列表"""
@@ -81,7 +127,7 @@ class MemoryManager:
 
     async def save_to_memory(
         self,
-        backend: InMemoryBackend,
+        backend: FileBackend,
         user_messages: list[Dict[str, Any]],
         assistant_content: str,
     ) -> None:
@@ -94,7 +140,7 @@ class MemoryManager:
     async def _build_session_summary(
         self,
         session_id: str,
-        backend: InMemoryBackend,
+        backend: FileBackend,
     ) -> Dict[str, Any]:
         history = await backend.get_history()
         first_user = next((m for m in history if m["role"] == "user"), None)
@@ -122,10 +168,11 @@ class MemoryManager:
         """获取会话列表，可按用户名过滤"""
         normalized = normalize_username(username) if username else ""
         result = []
-        for session_id, backend in self._sessions.items():
+        for session_id in sorted(self._iter_session_ids()):
             owner = self._session_usernames.get(session_id)
             if normalized and owner != normalized:
                 continue
+            backend = self._get_backend(session_id)
             result.append(await self._build_session_summary(session_id, backend))
         return result
 
@@ -137,19 +184,17 @@ class MemoryManager:
 
         result = []
         for session_id in self.get_user_session_ids(normalized):
-            backend = self._sessions.get(session_id)
-            if not backend:
-                continue
+            backend = self._get_backend(session_id)
             summary = await self._build_session_summary(session_id, backend)
             result.append(summary)
         return result
 
     async def get_session(self, session_id: str) -> Dict[str, Any]:
         """获取指定会话的详细信息（包含对话内容）"""
-        backend = self._sessions.get(session_id)
-        if not backend:
+        if not self._session_file_exists(session_id) and session_id not in self._sessions:
             return {"error": f"Session '{session_id}' not found"}
 
+        backend = self._get_backend(session_id)
         history = await backend.get_history()
         return {
             "session_id": session_id,
@@ -160,8 +205,13 @@ class MemoryManager:
 
     def delete_session(self, session_id: str) -> bool:
         """删除指定会话，存在则删除并返回 True，否则返回 False"""
-        if session_id not in self._sessions:
+        exists = session_id in self._sessions or self._session_file_exists(session_id)
+        if not exists:
             return False
-        del self._sessions[session_id]
+
+        backend = self._get_backend(session_id)
+        backend.delete_file()
+        self._sessions.pop(session_id, None)
         self._session_usernames.pop(session_id, None)
+        self._save_index()
         return True

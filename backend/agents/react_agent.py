@@ -5,7 +5,7 @@ from typing import List, Dict, Any, AsyncGenerator, Optional
 from agentscope.model import OpenAIChatModel
 
 from tools import tool_registry, BaseTool
-from memory.in_memory_backend import InMemoryBackend
+from memory.file_backend import FileBackend
 
 
 class ReActAgent:
@@ -116,7 +116,7 @@ class ReActAgent:
     async def chat(
         self,
         messages: List[Dict[str, Any]],
-        memory: Optional[InMemoryBackend] = None,
+        memory: Optional[FileBackend] = None,
         stream: bool = False,
     ) -> Any:
         """执行聊天逻辑，支持工具调用"""
@@ -175,7 +175,7 @@ class ReActAgent:
     async def _chat_non_stream(
         self,
         messages: List[Dict[str, Any]],
-        memory: Optional[InMemoryBackend],
+        memory: Optional[FileBackend],
         tool_round: int = 0,
         allow_tools: bool = True,
     ) -> Dict[str, Any]:
@@ -236,7 +236,7 @@ class ReActAgent:
     async def _chat_stream(
         self,
         messages: List[Dict[str, Any]],
-        memory: Optional[InMemoryBackend],
+        memory: Optional[FileBackend],
         tool_round: int = 0,
         allow_tools: bool = True,
     ) -> AsyncGenerator[str, None]:

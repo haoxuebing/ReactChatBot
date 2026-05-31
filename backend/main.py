@@ -49,7 +49,9 @@ model = OpenAIChatModel(
     },
 )
 
-memory_manager = MemoryManager()
+memory_manager = MemoryManager(
+    data_dir=os.getenv("MEMORY_DATA_DIR"),
+)
 agent = ReActAgent(model)
 
 

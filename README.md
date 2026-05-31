@@ -38,9 +38,14 @@ uv sync
 LLM_API_KEY=your_api_key_here
 LLM_BASE_URL=https://api.deepseek.com
 LLM_MODEL=deepseek-v4-flash
+
+# 可选：聊天记录存储目录，默认为 backend/data/chat_memory
+# MEMORY_DATA_DIR=./data/chat_memory
 ```
 
 > 支持任意 OpenAI 兼容 API（OpenAI、Azure、硅基流动等），只需修改 `base_url` 和 `model_name`。
+>
+> 聊天记录与会话元数据持久化到本地 JSON 文件；Docker Compose 部署时已挂载卷 `chat_memory_data` 防止容器重启后丢失。
 
 ### 3. 启动后端服务
 
@@ -180,8 +185,9 @@ DOCKER_REGISTRY=docker.1panel.live
 │   │
 │   ├── memory/
 │   │   ├── __init__.py
-│   │   ├── memory_manager.py  # 会话级记忆管理器
-│   │   └── in_memory_backend.py # 基于 AgentScope InMemoryMemory 的记忆后端
+│   │   ├── memory_manager.py  # 会话级记忆管理器（文件持久化）
+│   │   ├── file_backend.py    # 基于 JSON 文件的聊天记录存储
+│   │   └── in_memory_backend.py # 内存后端（备用）
 │   │
 │   └── tools/
 │       ├── __init__.py        # 工具注册表
