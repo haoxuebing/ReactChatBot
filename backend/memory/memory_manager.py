@@ -62,3 +62,10 @@ class MemoryManager:
             "message_count": backend.get_message_count(),
             "messages": history,
         }
+
+    def delete_session(self, session_id: str) -> bool:
+        """删除指定会话，存在则删除并返回 True，否则返回 False"""
+        if session_id not in self._sessions:
+            return False
+        del self._sessions[session_id]
+        return True

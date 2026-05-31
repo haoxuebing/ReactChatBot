@@ -5,7 +5,7 @@ import logging
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -198,7 +198,8 @@ async def list_tools():
 @app.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: str):
     """删除指定会话"""
-    # 由于当前使用InMemoryBackend，无法直接删除，这里只是演示
+    if not memory_manager.delete_session(session_id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     return {"message": f"Session {session_id} deleted"}
 
 @app.get("/api/sessions")
