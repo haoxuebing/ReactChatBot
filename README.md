@@ -111,18 +111,18 @@ OPENAPI_URL=/openapi.json
 docker compose up -d --build
 ```
 
-默认映射端口为 **8080**，可在项目根目录 `.env` 中通过 `APP_PORT` 修改：
+默认映射端口为 **8081**，可在项目根目录 `.env` 中通过 `APP_PORT` 修改：
 
 ```env
-APP_PORT=8080
+APP_PORT=8081
 ```
 
 启动后访问：
 
 | 地址 | 说明 |
 |---|---|
-| http://localhost:8080 | Web 聊天界面 |
-| http://localhost:8080/docs | Swagger API 文档（路径同 `DOCS_URL`，默认 `/docs`） |
+| http://localhost:8081 | Web 聊天界面 |
+| http://localhost:8081/docs | Swagger API 文档（路径同 `DOCS_URL`，默认 `/docs`） |
 
 若将文档路径改为 `/api/docs` 等以 `/api/` 开头的地址，Nginx 会通过现有 `/api/` 反代规则自动转发，无需额外配置；若改为其他路径，需同步修改 `docker/nginx.conf`。
 
@@ -142,7 +142,7 @@ docker build -t agentscope-chat:latest .
 
 # 启动容器
 docker run -d \
-  -p 8080:80 \
+  -p 8081:80 \
   -e LLM_API_KEY=your_api_key_here \
   -e LLM_BASE_URL=https://api.deepseek.com \
   -e LLM_MODEL=deepseek-v4-flash \
