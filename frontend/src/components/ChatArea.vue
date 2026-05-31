@@ -4,8 +4,8 @@
       <div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white mb-4">
         <Sparkles :size="40" />
       </div>
-      <h2 class="text-xl font-semibold text-gray-600 mb-2">欢迎使用 AgentScope</h2>
-      <p class="text-sm text-gray-400">开始对话，体验智能助手的强大功能</p>
+      <h2 class="text-xl font-semibold text-gray-600 mb-2">有什么可以帮你的？</h2>
+      <p class="text-sm text-gray-400">支持联网搜索、计算与日期查询，直接提问即可</p>
     </div>
     
     <div v-else ref="messagesContainer" class="flex-1 overflow-y-auto p-6">
