@@ -14,6 +14,10 @@ export function formatToolStepSummary(toolCall) {
   if (toolCall.name === 'web_search') {
     return `${name} · ${args.query || ''}`
   }
+  if (toolCall.name === 'weather_tool') {
+    const parts = [args.city, args.date].filter(Boolean)
+    return `${name} · ${parts.join(' · ') || ''}`
+  }
   if (toolCall.name === 'calculator') {
     return `${name} · ${args.expression || args.query || ''}`
   }
@@ -137,6 +141,7 @@ export function looksLikeToolCall(content) {
 
 export const TOOL_LABELS = {
   web_search: '网络搜索',
+  weather_tool: '天气查询',
   calculator: '计算器',
   date_tool: '日期工具',
 }

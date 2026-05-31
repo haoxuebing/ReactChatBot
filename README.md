@@ -39,6 +39,10 @@ LLM_API_KEY=your_api_key_here
 LLM_BASE_URL=https://api.deepseek.com
 LLM_MODEL=deepseek-v4-flash
 
+# 和风天气（国内天气查询，注册：https://dev.qweather.com）
+QWEATHER_API_HOST=your-api-host.qweatherapi.com
+QWEATHER_API_KEY=your_qweather_api_key
+
 # 可选：聊天记录存储目录，默认为 backend/data/chat_memory
 # MEMORY_DATA_DIR=./data/chat_memory
 ```
@@ -195,6 +199,8 @@ DOCKER_REGISTRY=docker.1panel.live
 │       ├── calculator_tool.py # 计算器工具（数学运算）
 │       ├── date_tool.py       # 日期工具（当前时间、格式化、加减、差值）
 │       ├── web_search_tool.py # 网络搜索工具（必应中文搜索）
+│       ├── weather_tool.py    # 国内天气查询（和风天气）
+│       ├── qweather_client.py # 和风天气 API 客户端
 │       └── bing_client.py     # 必应搜索与网页抓取客户端
 │
 ├── frontend/                   # 前端代码（Vue 3 + Vite）
@@ -371,6 +377,7 @@ curl -X POST http://localhost:8000/api/chat \
 |---|---|---|
 | 计算器 | `calculator` | 数学运算，支持加减乘除、幂运算、开方、三角函数等 |
 | 日期工具 | `date_tool` | 获取当前时间、日期格式化、日期加减、日期差计算 |
+| 天气查询 | `weather_tool` | 国内城市实时天气与逐日预报（和风天气 API） |
 | 网络搜索 | `web_search` | 必应中文搜索，自动抓取 Top 结果正文，无需 API Key |
 
 ## 扩展建议

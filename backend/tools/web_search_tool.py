@@ -20,14 +20,13 @@ class WebSearchTool(BaseTool):
     name = "web_search"
     description = (
         "使用必应中文搜索引擎获取互联网最新信息。"
-        "搜索词请使用具体关键词，避免「明天」「后天」等相对时间；"
-        "天气类建议格式：「城市 YYYY-MM-DD 天气预报」；"
-        "新闻类建议加上年份，如「2026 最新 ...」。"
+        "天气查询请使用 weather_tool，不要用本工具。"
+        "新闻类建议加上年份等具体关键词，如「2026 最新 ...」。"
     )
     parameters = {
         "query": {
             "type": "string",
-            "description": "搜索关键词，使用具体日期和地点，不要用相对时间词",
+            "description": "搜索关键词",
         }
     }
 
