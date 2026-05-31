@@ -69,6 +69,96 @@ npm run dev
 
 前端启动后访问：http://localhost:5173
 
+## Docker 部署
+
+使用 Docker 可将前后端打包为**单一镜像**一键部署，容器内由 Nginx 提供前端静态资源并反向代理 API。
+
+### 前置要求
+
+- [Docker](https://docs.docker.com/get-docker/) >= 20.10
+- [Docker Compose](https://docs.docker.com/compose/)（可选，推荐）
+
+### 1. 配置环境变量
+
+在 `backend/.env` 中配置大模型相关变量（与本地开发相同）：
+
+```env
+LLM_API_KEY=your_api_key_here
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
+```
+
+### 2. 使用 Docker Compose 启动（推荐）
+
+```bash
+docker compose up -d --build
+```
+
+默认映射端口为 **8080**，可在项目根目录 `.env` 中通过 `APP_PORT` 修改：
+
+```env
+APP_PORT=8080
+```
+
+启动后访问：
+
+| 地址 | 说明 |
+|---|---|
+| http://localhost:8080 | Web 聊天界面 |
+| http://localhost:8080/docs | Swagger API 文档 |
+
+常用命令：
+
+```bash
+docker compose logs -f    # 查看日志
+docker compose down       # 停止并移除容器
+docker compose up -d --build  # 代码变更后重新构建并启动
+```
+
+### 3. 手动构建与运行
+
+```bash
+# 构建镜像
+docker build -t agentscope-chat:latest .
+
+# 启动容器
+docker run -d \
+  -p 8080:80 \
+  -e LLM_API_KEY=your_api_key_here \
+  -e LLM_BASE_URL=https://api.deepseek.com \
+  -e LLM_MODEL=deepseek-v4-flash \
+  agentscope-chat:latest
+```
+
+### 镜像架构
+
+```
+浏览器 → Nginx :80
+           ├── /           → Vue 前端静态文件
+           ├── /api/*      → uvicorn :8000（SSE 流式代理）
+           └── /docs       → Swagger UI
+```
+
+镜像采用多阶段构建：
+
+1. **frontend-build** — Node.js 构建 Vue 前端
+2. **backend-build** — uv 安装 Python 依赖
+3. **最终镜像** — Nginx + FastAPI，约 350MB
+
+### 国内网络说明
+
+若构建时拉取 Docker Hub 镜像超时，可指定镜像加速源：
+
+```bash
+# 方式一：构建参数
+docker build --build-arg DOCKER_REGISTRY=docker.1panel.live -t agentscope-chat:latest .
+
+# 方式二：在项目根目录 .env 中设置（docker compose 自动读取）
+DOCKER_REGISTRY=docker.1panel.live
+```
+
+可选加速源：`docker.m.daocloud.io`（默认）、`docker.1panel.live`
+
 ## 项目结构
 
 ```
@@ -121,6 +211,13 @@ npm run dev
 │   ├── tailwind.config.js
 │   └── postcss.config.js
 │
+├── docker/                     # Docker 运行配置
+│   ├── nginx.conf             # Nginx 反向代理与静态资源
+│   └── start.sh               # 容器启动脚本（uvicorn + nginx）
+├── Dockerfile                  # 多阶段镜像构建
+├── docker-compose.yml          # Compose 编排
+├── .dockerignore
+├── .env.example                # 环境变量示例（APP_PORT、镜像加速等）
 ├── .gitignore
 └── README.md
 ```
