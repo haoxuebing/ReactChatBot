@@ -151,7 +151,7 @@ async def chat(request: ChatRequest):
                 full_text += content
                 chunk_count += 1
                 if chunk_count % 5 == 0 or len(full_text) > 100:
-                    logger.info(f"[API/CHAT] Stream chunk #{chunk_count}, Total length: {len(full_text)}")
+                    # logger.info(f"[API/CHAT] Stream chunk #{chunk_count}, Total length: {len(full_text)}")
                     chunk_count = 0
             yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, delta, choice.get('finish_reason'))}\n\n"
         
