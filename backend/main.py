@@ -205,12 +205,14 @@ async def delete_session(session_id: str):
 @app.get("/api/sessions")
 async def list_sessions():
     """获取所有会话"""
-    return {"sessions": memory_manager.list_sessions()}
+    return {"sessions": await memory_manager.list_sessions()}
 
 @app.get("/api/sessions/{session_id}")
 async def get_session(session_id: str):
     """获取指定会话"""
     result = await memory_manager.get_session(session_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
     return {"session": result}
 
 @app.get("/")

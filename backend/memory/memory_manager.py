@@ -43,12 +43,31 @@ class MemoryManager:
         messages_to_save.append({"role": "assistant", "content": assistant_content})
         await backend.add_messages(messages_to_save)
     
-    def list_sessions(self) -> list[Dict[str, Any]]:
+    async def list_sessions(self) -> list[Dict[str, Any]]:
         """获取所有会话列表"""
-        return [
-            {"session_id": session_id, "message_count": backend.get_message_count()}
-            for session_id, backend in self._sessions.items()
-        ]
+        result = []
+        for session_id, backend in self._sessions.items():
+            history = await backend.get_history()
+            first_user = next((m for m in history if m["role"] == "user"), None)
+            last_msg = history[-1] if history else None
+
+            name = "未命名会话"
+            if first_user and first_user.get("content"):
+                content = first_user["content"]
+                name = content[:20] + ("..." if len(content) > 20 else "")
+
+            last_message = ""
+            if last_msg and last_msg.get("content"):
+                content = last_msg["content"]
+                last_message = content[:30] + ("..." if len(content) > 30 else "")
+
+            result.append({
+                "session_id": session_id,
+                "message_count": backend.get_message_count(),
+                "name": name,
+                "last_message": last_message,
+            })
+        return result
     
     async def get_session(self, session_id: str) -> Dict[str, Any]:
         """获取指定会话的详细信息（包含对话内容）"""

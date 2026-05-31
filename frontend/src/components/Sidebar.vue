@@ -21,11 +21,11 @@
       <div v-else class="p-1 space-y-1">
         <div
           v-for="session in sessions"
-          :key="session.id"
-          @click="$emit('select-session', session.id)"
+          :key="getSessionId(session)"
+          @click="$emit('select-session', getSessionId(session))"
           class="group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all"
           :class="[
-            currentSessionId === session.id
+            currentSessionId === getSessionId(session)
               ? 'bg-blue-50 border border-blue-200'
               : 'hover:bg-gray-100 border border-transparent'
           ]"
@@ -45,7 +45,7 @@
           
           <button
             v-if="!collapsed"
-            @click.stop="$emit('delete-session', session.id)"
+            @click.stop="$emit('delete-session', getSessionId(session))"
             class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
             title="删除会话"
           >
@@ -76,6 +76,7 @@
 
 <script setup>
 import { Plus, MessageSquare, MessageCircle, Trash2, User } from 'lucide-vue-next'
+import { getSessionId } from '../utils/sessionUtils'
 
 defineProps({
   sessions: {

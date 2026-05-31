@@ -107,8 +107,9 @@ import { MessageCircle, ChevronLeft, ChevronRight, Menu } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
 import UsernameSetupModal from './UsernameSetupModal.vue'
-import { chatStream, getSessions, deleteSession } from '../services/api'
+import { chatStream, getSessions, getSession, deleteSession } from '../services/api'
 import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolContent } from '../utils/messageUtils'
+import { normalizeSession, apiMessagesToLocal, deriveSessionMetaFromMessages } from '../utils/sessionUtils'
 import { getUsername, hasUsername } from '../utils/userStorage'
 
 const sessions = ref([])
@@ -158,13 +159,49 @@ function handleUsernameConfirm(name) {
 async function loadSessions() {
   try {
     const result = await getSessions()
-    sessions.value = result.sessions || []
-    
+    sessions.value = (result.sessions || []).map(normalizeSession)
+
     if (sessions.value.length > 0) {
-      currentSessionId.value = sessions.value[0].id
+      const firstId = sessions.value[0].id
+      currentSessionId.value = firstId
+      await loadSessionMessages(firstId)
     }
   } catch (e) {
     console.error('加载会话失败:', e)
+  }
+}
+
+async function loadSessionMessages(sessionId) {
+  if (!sessionId) return
+
+  try {
+    const result = await getSession(sessionId)
+    const session = result.session
+    if (!session || session.error) {
+      if (!messagesBySession.value[sessionId]) {
+        messagesBySession.value[sessionId] = []
+      }
+      return
+    }
+
+    const localMessages = apiMessagesToLocal(sessionId, session.messages)
+    messagesBySession.value[sessionId] = localMessages
+
+    const sessionIndex = sessions.value.findIndex(s => s.id === sessionId)
+    if (sessionIndex > -1) {
+      const meta = deriveSessionMetaFromMessages(localMessages)
+      sessions.value[sessionIndex] = {
+        ...sessions.value[sessionIndex],
+        name: meta.name,
+        lastMessage: meta.lastMessage,
+        messageCount: session.message_count ?? localMessages.length,
+      }
+    }
+  } catch (e) {
+    console.error('加载会话消息失败:', e)
+    if (!messagesBySession.value[sessionId]) {
+      messagesBySession.value[sessionId] = []
+    }
   }
 }
 
@@ -184,12 +221,19 @@ function handleNewSession() {
 }
 
 async function handleSelectSession(sessionId) {
-  currentSessionId.value = sessionId
-
-  if (!messagesBySession.value[sessionId]) {
-    messagesBySession.value[sessionId] = []
+  if (currentSessionId.value === sessionId) {
+    closeMobileSidebar()
+    return
   }
 
+  if (isLoading.value && currentStreamController) {
+    currentStreamController.stop()
+    currentStreamController = null
+    isLoading.value = false
+  }
+
+  currentSessionId.value = sessionId
+  await loadSessionMessages(sessionId)
   closeMobileSidebar()
 }
 
