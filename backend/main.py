@@ -5,7 +5,7 @@ import logging
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -91,7 +91,7 @@ async def sse_stream_wrapper(
 
 
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     """智能体聊天接口（V2）"""
     # 获取或创建会话
     session_id, memory_backend = memory_manager.get_or_create_session(request.session_id)
@@ -109,9 +109,15 @@ async def chat(request: ChatRequest):
         full_messages = system_prompts + full_messages
     
     # 打印请求日志
-    logger.info(f"[API/CHAT] Session: {session_id}, Stream: {request.stream}, Messages: {len(full_messages)}")
+    forwarded_for = http_request.headers.get("X-Forwarded-For")
+    client_ip = (
+        forwarded_for.split(",")[0].strip()
+        if forwarded_for
+        else (http_request.client.host if http_request.client else "unknown")
+    )
+    logger.info(f"[API/CHAT] IP: {client_ip}, Session: {session_id}, Stream: {request.stream}, Messages: {len(full_messages)}")
     if user_assistant_messages:
-        logger.info(f"[API/CHAT] User Message: {user_assistant_messages[-1]['content'][:100]}...")
+        logger.info(f"[API/CHAT] IP: {client_ip}, User Message: {user_assistant_messages[-1]['content'][:100]}...")
     
     # 调用智能体
     if not request.stream:
