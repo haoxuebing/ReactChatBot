@@ -1,5 +1,4 @@
 const STORAGE_KEY = 'nicebing_username'
-const DEFAULT_USERNAME = 'user'
 const MAX_USERNAME_LENGTH = 12
 
 export function getUsername() {
@@ -12,9 +11,11 @@ export function hasUsername() {
 
 export function saveUsername(name) {
   const trimmed = (name || '').trim().slice(0, MAX_USERNAME_LENGTH)
-  const finalName = trimmed || DEFAULT_USERNAME
-  localStorage.setItem(STORAGE_KEY, finalName)
-  return finalName
+  if (!trimmed) {
+    return null
+  }
+  localStorage.setItem(STORAGE_KEY, trimmed)
+  return trimmed
 }
 
-export { DEFAULT_USERNAME, MAX_USERNAME_LENGTH, STORAGE_KEY }
+export { MAX_USERNAME_LENGTH, STORAGE_KEY }

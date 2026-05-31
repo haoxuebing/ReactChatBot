@@ -93,7 +93,7 @@ defineProps({
   },
   username: {
     type: String,
-    default: 'user'
+    default: ''
   }
 })
 

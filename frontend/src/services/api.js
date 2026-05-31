@@ -1,6 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
-export function chatStream(sessionId, messages, onMessage, onError, onComplete) {
+export function chatStream(sessionId, username, messages, onMessage, onError, onComplete) {
   let isStopped = false
   let controller = new AbortController()
 
@@ -11,6 +11,7 @@ export function chatStream(sessionId, messages, onMessage, onError, onComplete) 
     },
     body: JSON.stringify({
       session_id: sessionId || '',
+      username: username || '',
       messages: messages,
       stream: true,
     }),
@@ -94,7 +95,7 @@ export function chatStream(sessionId, messages, onMessage, onError, onComplete) 
   }
 }
 
-export async function chat(sessionId, messages) {
+export async function chat(sessionId, username, messages) {
   const response = await fetch(`${BASE_URL}/chat`, {
     method: 'POST',
     headers: {
@@ -102,6 +103,7 @@ export async function chat(sessionId, messages) {
     },
     body: JSON.stringify({
       session_id: sessionId || '',
+      username: username || '',
       messages: messages,
       stream: false,
     }),
@@ -115,8 +117,9 @@ export async function chat(sessionId, messages) {
   return await response.json()
 }
 
-export async function getSessions() {
-  const response = await fetch(`${BASE_URL}/sessions`)
+export async function getSessions(username = '') {
+  const query = username ? `?username=${encodeURIComponent(username)}` : ''
+  const response = await fetch(`${BASE_URL}/sessions${query}`)
   
   if (!response.ok) {
     const error = await response.json()
@@ -145,6 +148,65 @@ export async function deleteSession(sessionId) {
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.detail || '删除会话失败')
+  }
+
+  return await response.json()
+}
+
+export async function createSession(username, sessionId = '') {
+  const response = await fetch(`${BASE_URL}/sessions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      username,
+      session_id: sessionId,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '创建会话失败')
+  }
+
+  return await response.json()
+}
+
+export async function registerUser(username) {
+  const response = await fetch(`${BASE_URL}/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '注册用户名失败')
+  }
+
+  return await response.json()
+}
+
+export async function getUsers() {
+  const response = await fetch(`${BASE_URL}/users`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取用户列表失败')
+  }
+
+  return await response.json()
+}
+
+export async function getUserSessions(username) {
+  const response = await fetch(`${BASE_URL}/users/${encodeURIComponent(username)}/sessions`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取用户会话失败')
   }
 
   return await response.json()

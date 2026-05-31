@@ -5,7 +5,7 @@ import logging
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -23,7 +23,7 @@ from agentscope.model import OpenAIChatModel
 
 from agents import ReActAgent
 from memory import MemoryManager
-from schemas import ChatRequest
+from schemas import ChatRequest, UsernameRequest, CreateSessionRequest
 
 # 加载环境变量
 load_dotenv()
@@ -94,7 +94,10 @@ async def sse_stream_wrapper(
 async def chat(request: ChatRequest, http_request: Request):
     """智能体聊天接口（V2）"""
     # 获取或创建会话
-    session_id, memory_backend = memory_manager.get_or_create_session(request.session_id)
+    session_id, memory_backend = memory_manager.get_or_create_session(
+        request.session_id,
+        request.username or None,
+    )
     
     # 提取消息
     messages_raw = [m.model_dump() for m in request.messages]
@@ -202,10 +205,25 @@ async def delete_session(session_id: str):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     return {"message": f"Session {session_id} deleted"}
 
+
+@app.post("/api/sessions")
+async def create_session(request: CreateSessionRequest):
+    """创建并绑定用户会话"""
+    try:
+        session_id, _ = memory_manager.get_or_create_session(
+            request.session_id or None,
+            request.username,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"session_id": session_id, "username": request.username.strip()[:12]}
+
+
 @app.get("/api/sessions")
-async def list_sessions():
-    """获取所有会话"""
-    return {"sessions": await memory_manager.list_sessions()}
+async def list_sessions(username: str = Query("", description="按用户名过滤会话")):
+    """获取会话列表，可通过 username 过滤"""
+    return {"sessions": await memory_manager.list_sessions(username or None)}
+
 
 @app.get("/api/sessions/{session_id}")
 async def get_session(session_id: str):
@@ -214,6 +232,36 @@ async def get_session(session_id: str):
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return {"session": result}
+
+
+@app.post("/api/users")
+async def register_user(request: UsernameRequest):
+    """注册用户名"""
+    try:
+        username = memory_manager.register_username(request.username)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"username": username}
+
+
+@app.get("/api/users")
+async def list_users():
+    """获取所有用户名"""
+    return {"usernames": memory_manager.list_usernames()}
+
+
+@app.get("/api/users/{username}/sessions")
+async def list_user_sessions(username: str):
+    """获取指定用户名下的 session_id 列表及会话摘要"""
+    normalized = username.strip()[:12]
+    if normalized not in memory_manager.list_usernames():
+        raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+    sessions = await memory_manager.list_user_sessions(normalized)
+    return {
+        "username": normalized,
+        "session_ids": [item["session_id"] for item in sessions],
+        "sessions": sessions,
+    }
 
 @app.get("/")
 async def health_check():

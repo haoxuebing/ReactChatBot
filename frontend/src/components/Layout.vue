@@ -107,7 +107,7 @@ import { MessageCircle, ChevronLeft, ChevronRight, Menu } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
 import UsernameSetupModal from './UsernameSetupModal.vue'
-import { chatStream, getSessions, getSession, deleteSession } from '../services/api'
+import { chatStream, getSessions, getSession, deleteSession, registerUser, createSession } from '../services/api'
 import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolContent } from '../utils/messageUtils'
 import { normalizeSession, apiMessagesToLocal, deriveSessionMetaFromMessages } from '../utils/sessionUtils'
 import { getUsername, hasUsername } from '../utils/userStorage'
@@ -133,7 +133,9 @@ const currentMessages = computed(() => {
 })
 
 onMounted(async () => {
-  await loadSessions()
+  if (hasUsername()) {
+    await loadSessions()
+  }
   window.addEventListener('resize', handleResize)
 })
 
@@ -151,20 +153,31 @@ function closeMobileSidebar() {
   mobileSidebarOpen.value = false
 }
 
-function handleUsernameConfirm(name) {
+async function handleUsernameConfirm(name) {
   username.value = name
   showUsernameSetup.value = false
+  try {
+    await registerUser(name)
+    await loadSessions()
+  } catch (e) {
+    console.error('注册用户失败:', e)
+    showToastMessage('加载用户会话失败')
+  }
 }
 
 async function loadSessions() {
+  if (!username.value) return
+
   try {
-    const result = await getSessions()
+    const result = await getSessions(username.value)
     sessions.value = (result.sessions || []).map(normalizeSession)
 
     if (sessions.value.length > 0) {
       const firstId = sessions.value[0].id
       currentSessionId.value = firstId
       await loadSessionMessages(firstId)
+    } else {
+      currentSessionId.value = null
     }
   } catch (e) {
     console.error('加载会话失败:', e)
@@ -205,9 +218,24 @@ async function loadSessionMessages(sessionId) {
   }
 }
 
-function handleNewSession() {
+async function handleNewSession() {
+  if (!username.value) {
+    showUsernameSetup.value = true
+    return
+  }
+
+  const sessionId = Date.now().toString()
+
+  try {
+    await createSession(username.value, sessionId)
+  } catch (e) {
+    console.error('创建会话失败:', e)
+    showToastMessage('创建会话失败')
+    return
+  }
+
   const newSession = {
-    id: Date.now().toString(),
+    id: sessionId,
     name: '未命名会话',
     lastMessage: '',
     createdAt: Date.now()
@@ -260,10 +288,15 @@ async function handleDeleteSession(sessionId) {
 }
 
 async function handleSendMessage(content) {
-  if (!currentSessionId.value) {
-    handleNewSession()
+  if (!username.value) {
+    showUsernameSetup.value = true
+    return
   }
-  
+
+  if (!currentSessionId.value) {
+    await handleNewSession()
+  }
+
   const sessionId = currentSessionId.value
   
   if (!messagesBySession.value[sessionId]) {
@@ -294,6 +327,7 @@ async function handleSendMessage(content) {
   try {
     currentStreamController = chatStream(
       sessionId,
+      username.value,
       messagesForApi,
       (chunk) => {
         const delta = chunk.choices[0]?.delta || {}
