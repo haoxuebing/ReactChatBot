@@ -43,6 +43,11 @@ LLM_MODEL=deepseek-v4-flash
 QWEATHER_API_HOST=your-api-host.qweatherapi.com
 QWEATHER_API_KEY=your_qweather_api_key
 
+# FastAPI 文档路径（留空则关闭对应页面，默认 /docs、/redoc、/openapi.json）
+DOCS_URL=/docs
+REDOC_URL=/redoc
+OPENAPI_URL=/openapi.json
+
 # 可选：聊天记录存储目录，默认为 backend/data/chat_memory
 # MEMORY_DATA_DIR=./data/chat_memory
 ```
@@ -58,7 +63,7 @@ cd backend
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-服务启动后访问：http://localhost:8000/docs（Swagger UI）
+服务启动后访问 Swagger UI：http://localhost:8000/docs（路径由 `DOCS_URL` 控制，ReDoc 为 `REDOC_URL`）
 
 ### 4. 安装前端依赖
 
@@ -93,6 +98,11 @@ npm run dev
 LLM_API_KEY=your_api_key_here
 LLM_BASE_URL=https://api.deepseek.com
 LLM_MODEL=deepseek-v4-flash
+
+# 可选：文档路径（生产环境可留空关闭）
+DOCS_URL=/docs
+REDOC_URL=/redoc
+OPENAPI_URL=/openapi.json
 ```
 
 ### 2. 使用 Docker Compose 启动（推荐）
@@ -112,7 +122,9 @@ APP_PORT=8080
 | 地址 | 说明 |
 |---|---|
 | http://localhost:8080 | Web 聊天界面 |
-| http://localhost:8080/docs | Swagger API 文档 |
+| http://localhost:8080/docs | Swagger API 文档（路径同 `DOCS_URL`，默认 `/docs`） |
+
+若将文档路径改为 `/api/docs` 等以 `/api/` 开头的地址，Nginx 会通过现有 `/api/` 反代规则自动转发，无需额外配置；若改为其他路径，需同步修改 `docker/nginx.conf`。
 
 常用命令：
 
@@ -142,8 +154,8 @@ docker run -d \
 ```
 浏览器 → Nginx :80
            ├── /           → Vue 前端静态文件
-           ├── /api/*      → uvicorn :8000（SSE 流式代理）
-           └── /docs       → Swagger UI
+           ├── /api/*      → uvicorn :8000（SSE 流式代理；若 DOCS_URL 为 /api/docs 则文档也走此规则）
+           └── /docs       → Swagger UI（默认 DOCS_URL=/docs 时由 Nginx 单独反代）
 ```
 
 镜像采用多阶段构建：
