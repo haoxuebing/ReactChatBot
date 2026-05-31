@@ -1,53 +1,108 @@
 const EMOJI_ITEM_RE = /([🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈]\s*[^：:\n]{1,24}[：:])/g
 
+const WEATHER_METRICS =
+  '天气|温度|风力|风向|湿度|降水量|降水|紫外线指数|体感|能见度|云量|气压|白天|夜间'
+
+const WEATHER_METRIC_SPLIT_RE = new RegExp(
+  `([^\\n-])(?=(${WEATHER_METRICS})[：:])`,
+  'g'
+)
+
+const WEATHER_METRIC_LINE_RE = new RegExp(
+  `^(\\s*)((?:${WEATHER_METRICS})[：:])`,
+  'gm'
+)
+
+const ISO_DATE_TITLE_RE =
+  /(\d{4}-\d{2}-\d{2})(?:[（(]([^）)\n]+)[）)])?/g
+
+function splitInlineHeaders(text) {
+  return text.replace(/\s*#{1,3}\s+/g, (match) => {
+    const level = (match.match(/#/g) || []).length
+    return `\n\n${'#'.repeat(level)} `
+  })
+}
+
+function promoteDateTitles(text) {
+  let result = text.replace(
+    /([。：；！？\n]|^)\s*(\d{4}-\d{2}-\d{2}[（(][^）)\n]+[）)])/g,
+    '$1\n\n### $2\n\n'
+  )
+  result = result.replace(
+    /([。：；！？\n]|^)\s*(\d{4}-\d{2}-\d{2})(?![（(\d])/g,
+    '$1\n\n### $2\n\n'
+  )
+  return result
+}
+
+function splitWeatherMetrics(text) {
+  let result = text.replace(WEATHER_METRIC_SPLIT_RE, '$1\n- ')
+  result = result.replace(WEATHER_METRIC_LINE_RE, '$1- $2')
+  return result
+}
+
+function formatSummarySections(text) {
+  return text.replace(
+    /\s*((?:总体趋势|出行建议|温馨提示|总结|补充说明|数据来源))[：:]/g,
+    '\n\n**$1：**\n\n'
+  )
+}
+
+function formatIsoDateRangeIntro(text) {
+  return text.replace(
+    /([：:]\s*)(（覆盖[^）\n]+）)/g,
+    '$1\n\n$2\n\n'
+  )
+}
+
 export function formatAssistantMarkdown(content) {
   if (!content) return ''
 
   let text = content.replace(/\r\n/g, '\n').trim()
 
-  // 分隔线
   text = text.replace(/\s*---+\s*/g, '\n\n---\n\n')
 
-  // 冒号后的日期标题
+  text = splitInlineHeaders(text)
+  text = promoteDateTitles(text)
+  text = formatIsoDateRangeIntro(text)
+
   text = text.replace(
     /([：:]\s*)(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
     '$1\n\n### $2\n\n'
   )
-
-  // 日期块标题：5月30日（周六）
   text = text.replace(
     /([。！？；\n])\s*(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
     '$1\n\n### $2\n\n'
   )
   text = text.replace(/^(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/m, '### $1\n\n')
 
-  // 独立日期（无括号）
   text = text.replace(
     /([。！？；\n])\s*(\d{4}年\d{1,2}月\d{1,2}日)/g,
     '$1\n\n### $2\n\n'
   )
 
-  // emoji 标签拆成列表项
+  text = splitWeatherMetrics(text)
+  text = formatSummarySections(text)
+
   text = text.replace(/([。；！？\n])\s*(?=[🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈])/g, '$1\n')
   text = text.replace(EMOJI_ITEM_RE, (match) => {
     return match.startsWith('- ') ? match : `- ${match.trim()}`
   })
 
-  // 「出行建议」「总结」等小节
   text = text.replace(
     /([。！？\n])\s*((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g,
     '$1\n\n**$2**\n\n'
   )
   text = text.replace(/\s+((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g, '\n\n**$1**\n\n')
 
-  // 普通「标签：」拆行（温度、湿度、风力等）
-  text = text.replace(
-    /([。；！？\n])\s*((?:温度|湿度|风力|风向|天气|降水|紫外线|穿衣|体感)[：:])/g,
-    '$1\n- $2'
-  )
-
-  // 合并过多空行
   text = text.replace(/\n{3,}/g, '\n\n')
 
   return text.trim()
 }
+
+/** @internal test helper */
+export function _formatIsoDateTitle(isoDate, label) {
+  return label ? `### ${isoDate}（${label}）` : `### ${isoDate}`
+}
+
+export { ISO_DATE_TITLE_RE }

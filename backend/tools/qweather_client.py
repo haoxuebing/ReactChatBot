@@ -126,12 +126,25 @@ def _format_now(now: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _relative_day_label(fx_date: str) -> str:
+    try:
+        day = datetime.strptime(fx_date, "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+    diff = (day - date.today()).days
+    labels = {0: "今天", 1: "明天", 2: "后天", 3: "大后天"}
+    return labels.get(diff, "")
+
+
 def _format_daily(day: dict[str, Any]) -> list[str]:
+    fx_date = day.get("fxDate", "?")
+    label = _relative_day_label(fx_date)
+    title = f"{fx_date}（{label}）" if label else fx_date
     lines = [
-        f"- 日期：{day.get('fxDate', '?')}",
-        f"- 白天：{day.get('textDay', '?')}，夜间：{day.get('textNight', '?')}",
+        f"### {title}",
+        f"- 天气：白天{day.get('textDay', '?')}，夜间{day.get('textNight', '?')}",
         f"- 温度：{day.get('tempMin', '?')}°C ~ {day.get('tempMax', '?')}°C",
-        f"- 白天风力：{day.get('windDirDay', '?')} {day.get('windScaleDay', '?')}级",
+        f"- 风力：{day.get('windDirDay', '?')} {day.get('windScaleDay', '?')}级",
         f"- 湿度：{day.get('humidity', '?')}%",
     ]
     if day.get("precip") not in (None, "", "0.0", "0"):
@@ -160,9 +173,9 @@ def get_weather(city: str, date_str: str | None = None, adm: str | None = None) 
         if daily_list:
             sections.append("\n## 未来7天预报")
             for day in daily_list:
-                sections.append(f"\n### {day.get('fxDate')}")
                 sections.extend(_format_daily(day))
-        return "\n".join(sections)
+                sections.append("")
+        return "\n".join(sections).strip()
 
     days_ahead = _days_ahead(target)
     if days_ahead > 30:
@@ -193,7 +206,6 @@ def get_weather(city: str, date_str: str | None = None, adm: str | None = None) 
     matched = next((d for d in daily_list if d.get("fxDate") == target_str), None)
 
     if matched:
-        sections.append(f"\n## {target_str} 预报")
         sections.extend(_format_daily(matched))
     else:
         sections.append(
