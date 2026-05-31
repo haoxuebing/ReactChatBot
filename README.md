@@ -60,10 +60,10 @@ OPENAPI_URL=/openapi.json
 
 ```bash
 cd backend
-uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn main:app --host 0.0.0.0 --port 8081 --reload
 ```
 
-服务启动后访问 Swagger UI：http://localhost:8000/docs（路径由 `DOCS_URL` 控制，ReDoc 为 `REDOC_URL`）
+服务启动后访问 Swagger UI：http://localhost:8081/docs（路径由 `DOCS_URL` 控制，ReDoc 为 `REDOC_URL`）
 
 ### 4. 安装前端依赖
 
@@ -154,7 +154,7 @@ docker run -d \
 ```
 浏览器 → Nginx :80
            ├── /           → Vue 前端静态文件
-           ├── /api/*      → uvicorn :8000（SSE 流式代理；若 DOCS_URL 为 /api/docs 则文档也走此规则）
+           ├── /api/*      → uvicorn :8081（SSE 流式代理；若 DOCS_URL 为 /api/docs 则文档也走此规则）
            └── /docs       → Swagger UI（默认 DOCS_URL=/docs 时由 Nginx 单独反代）
 ```
 
@@ -299,7 +299,7 @@ DOCKER_REGISTRY=docker.1panel.live
 ### 流式聊天（默认）
 
 ```bash
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role": "user", "content": "你好"}]
@@ -313,7 +313,7 @@ curl -X POST http://localhost:8000/api/chat \
 模型会自动识别需要调用工具的问题：
 
 ```bash
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role": "user", "content": "计算 2 + 3 * 4 等于多少？"}],
@@ -326,7 +326,7 @@ curl -X POST http://localhost:8000/api/chat \
 ### 日期工具
 
 ```bash
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role": "user", "content": "今天是几号？"}],
@@ -338,13 +338,13 @@ curl -X POST http://localhost:8000/api/chat \
 
 ```bash
 # 首次对话
-SESSION=$(curl -s -X POST http://localhost:8000/api/chat \
+SESSION=$(curl -s -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d '{"messages": [{"role": "user", "content": "我叫张三"}], "stream": false}' \
   | python -c "import sys,json; print(json.load(sys.stdin)[\"session_id\"])")
 
 # 后续对话
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d "{
     \"messages\": [{\"role\": \"user\", \"content\": \"我叫什么名字？\"}],
@@ -356,7 +356,7 @@ curl -X POST http://localhost:8000/api/chat \
 ### 携带 System Prompt
 
 ```bash
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
