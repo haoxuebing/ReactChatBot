@@ -6,10 +6,19 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 /* 自定义滚动条 */
@@ -115,10 +124,17 @@ body {
 .markdown-content pre {
   background-color: #1f2937;
   color: #e5e7eb;
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: 0.5rem;
   overflow-x: auto;
   margin-bottom: 0.5rem;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .markdown-content pre {
+    padding: 1rem;
+  }
 }
 
 .markdown-content pre code {

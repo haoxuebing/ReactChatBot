@@ -1,6 +1,6 @@
 <template>
-  <div v-if="shouldRender" class="flex gap-3 mb-6">
-    <div class="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white mt-0.5">
+  <div v-if="shouldRender" class="flex gap-2 sm:gap-3 mb-4 sm:mb-6">
+    <div class="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white mt-0.5">
       <Bot :size="18" />
     </div>
 

@@ -1,11 +1,11 @@
 <template>
   <div
     v-if="shouldRender"
-    class="flex gap-3 mb-4"
+    class="flex gap-2 sm:gap-3 mb-4"
     :class="[message.role === 'user' ? 'flex-row-reverse' : 'flex-row']"
   >
     <div
-      class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+      class="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center"
       :class="[
         message.role === 'user'
           ? 'bg-blue-500 text-white'
@@ -17,7 +17,7 @@
     </div>
 
     <div
-      class="max-w-[85%] min-w-[200px] px-4 py-3 rounded-2xl"
+      class="max-w-[85%] min-w-0 sm:min-w-[120px] px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl"
       :class="[
         message.role === 'user'
           ? 'bg-blue-500 text-white rounded-tr-sm'

@@ -46,7 +46,7 @@
           <button
             v-if="!collapsed"
             @click.stop="$emit('delete-session', session.id)"
-            class="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+            class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
             title="删除会话"
           >
             <Trash2 :size="14" />

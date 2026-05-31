@@ -9,7 +9,7 @@
       <span class="text-sm text-gray-600 truncate">{{ title }}</span>
       <ChevronDown
         :size="15"
-        class="ml-auto flex-shrink-0 text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+        class="ml-auto flex-shrink-0 text-gray-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200"
         :class="{ 'rotate-180 opacity-100': expanded }"
       />
     </button>
