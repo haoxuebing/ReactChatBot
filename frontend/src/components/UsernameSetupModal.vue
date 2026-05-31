@@ -5,7 +5,7 @@
         <User :size="24" />
       </div>
       <h2 class="text-lg font-semibold text-gray-800 text-center mb-1">设置用户名</h2>
-      <p class="text-sm text-gray-400 text-center mb-5">首次使用请先设置一个显示名称</p>
+      <p class="text-sm text-gray-400 text-center mb-5">{{ subtitle }}</p>
 
       <input
         v-model="inputValue"
@@ -33,6 +33,13 @@
 import { computed, ref } from 'vue'
 import { User } from 'lucide-vue-next'
 import { saveUsername } from '../utils/userStorage'
+
+defineProps({
+  subtitle: {
+    type: String,
+    default: '首次使用请先设置一个显示名称',
+  },
+})
 
 const emit = defineEmits(['confirm'])
 

@@ -56,26 +56,41 @@
     </div>
     
     <div v-if="!collapsed" class="p-3 border-t border-gray-200">
-      <div class="flex items-center gap-2 text-sm text-gray-500 min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
         <div class="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-          <User :size="14" />
+          <User :size="14" class="text-gray-500" />
         </div>
-        <span class="truncate">{{ username }}</span>
+        <span class="truncate flex-1 text-sm text-gray-500">{{ username }}</span>
+        <button
+          @click="$emit('logout')"
+          class="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          title="注销"
+        >
+          <LogOut :size="14" />
+          <span>注销</span>
+        </button>
       </div>
     </div>
     
     <div v-else class="p-3 border-t border-gray-200">
-      <div class="flex justify-center">
+      <div class="flex flex-col items-center gap-2">
         <div class="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center">
           <User :size="14" class="text-gray-500" />
         </div>
+        <button
+          @click="$emit('logout')"
+          class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          title="注销"
+        >
+          <LogOut :size="14" />
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { Plus, MessageSquare, MessageCircle, Trash2, User } from 'lucide-vue-next'
+import { Plus, MessageSquare, MessageCircle, Trash2, User, LogOut } from 'lucide-vue-next'
 import { getSessionId } from '../utils/sessionUtils'
 
 defineProps({
@@ -97,5 +112,5 @@ defineProps({
   }
 })
 
-defineEmits(['new-session', 'select-session', 'delete-session'])
+defineEmits(['new-session', 'select-session', 'delete-session', 'logout'])
 </script>

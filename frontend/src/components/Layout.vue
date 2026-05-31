@@ -18,6 +18,7 @@
         @new-session="handleNewSession"
         @select-session="handleSelectSession"
         @delete-session="handleDeleteSession"
+        @logout="handleLogout"
       />
     </aside>
 
@@ -35,6 +36,7 @@
         @new-session="handleNewSession"
         @select-session="handleSelectSession"
         @delete-session="handleDeleteSession"
+        @logout="handleLogout"
       />
 
       <div
@@ -89,6 +91,7 @@
 
     <UsernameSetupModal
       v-if="showUsernameSetup"
+      :subtitle="usernameSetupSubtitle"
       @confirm="handleUsernameConfirm"
     />
 
@@ -110,7 +113,7 @@ import UsernameSetupModal from './UsernameSetupModal.vue'
 import { chatStream, getSessions, getSession, deleteSession, registerUser, createSession } from '../services/api'
 import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolContent } from '../utils/messageUtils'
 import { normalizeSession, apiMessagesToLocal, deriveSessionMetaFromMessages } from '../utils/sessionUtils'
-import { getUsername, hasUsername } from '../utils/userStorage'
+import { getUsername, hasUsername, clearUsername } from '../utils/userStorage'
 
 const sessions = ref([])
 const currentSessionId = ref(null)
@@ -122,6 +125,7 @@ const sidebarCollapsed = ref(false)
 const mobileSidebarOpen = ref(false)
 const username = ref(getUsername() || '')
 const showUsernameSetup = ref(!hasUsername())
+const usernameSetupSubtitle = ref('首次使用请先设置一个显示名称')
 let currentStreamController = null
 
 const currentSession = computed(() => {
@@ -163,6 +167,24 @@ async function handleUsernameConfirm(name) {
     console.error('注册用户失败:', e)
     showToastMessage('加载用户会话失败')
   }
+}
+
+function handleLogout() {
+  if (currentStreamController) {
+    currentStreamController.stop()
+    currentStreamController = null
+  }
+  isLoading.value = false
+
+  clearUsername()
+  username.value = ''
+  sessions.value = []
+  currentSessionId.value = null
+  messagesBySession.value = {}
+  usernameSetupSubtitle.value = '请设置新的用户名以继续使用'
+  showUsernameSetup.value = true
+  closeMobileSidebar()
+  showToastMessage('已注销，请重新设置用户名')
 }
 
 async function loadSessions() {

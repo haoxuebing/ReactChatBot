@@ -18,4 +18,8 @@ export function saveUsername(name) {
   return trimmed
 }
 
+export function clearUsername() {
+  localStorage.removeItem(STORAGE_KEY)
+}
+
 export { MAX_USERNAME_LENGTH, STORAGE_KEY }
