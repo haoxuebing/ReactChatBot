@@ -58,6 +58,9 @@
         <p class="text-xs text-gray-400 mt-2 text-center">
           按 Enter 发送消息
         </p>
+        <p class="text-xs text-gray-300 mt-1 text-center">
+          © 2026 NiceBing
+        </p>
       </div>
     </div>
   </div>

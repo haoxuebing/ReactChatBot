@@ -11,6 +11,7 @@
         :sessions="sessions"
         :current-session-id="currentSessionId"
         :collapsed="sidebarCollapsed"
+        :username="username"
         @new-session="handleNewSession"
         @select-session="handleSelectSession"
         @delete-session="handleDeleteSession"
@@ -60,6 +61,11 @@
       />
     </div>
     
+    <UsernameSetupModal
+      v-if="showUsernameSetup"
+      @confirm="handleUsernameConfirm"
+    />
+
     <div
       v-if="showToast"
       class="fixed bottom-4 right-4 px-4 py-2 bg-gray-800 text-white rounded-lg shadow-lg transition-all"
@@ -74,8 +80,10 @@ import { ref, computed, onMounted } from 'vue'
 import { MessageCircle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
+import UsernameSetupModal from './UsernameSetupModal.vue'
 import { chatStream, getSessions, deleteSession } from '../services/api'
 import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolContent } from '../utils/messageUtils'
+import { getUsername, hasUsername } from '../utils/userStorage'
 
 const sessions = ref([])
 const currentSessionId = ref(null)
@@ -84,6 +92,8 @@ const isLoading = ref(false)
 const showToast = ref(false)
 const toastMessage = ref('')
 const sidebarCollapsed = ref(false)
+const username = ref(getUsername() || '')
+const showUsernameSetup = ref(!hasUsername())
 let currentStreamController = null
 
 const currentSession = computed(() => {
@@ -97,6 +107,11 @@ const currentMessages = computed(() => {
 onMounted(async () => {
   await loadSessions()
 })
+
+function handleUsernameConfirm(name) {
+  username.value = name
+  showUsernameSetup.value = false
+}
 
 async function loadSessions() {
   try {

@@ -56,11 +56,11 @@
     </div>
     
     <div v-if="!collapsed" class="p-3 border-t border-gray-200">
-      <div class="flex items-center gap-2 text-sm text-gray-500">
-        <div class="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center">
+      <div class="flex items-center gap-2 text-sm text-gray-500 min-w-0">
+        <div class="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
           <User :size="14" />
         </div>
-        <span>AgentScope</span>
+        <span class="truncate">{{ username }}</span>
       </div>
     </div>
     
@@ -89,6 +89,10 @@ defineProps({
   collapsed: {
     type: Boolean,
     default: false
+  },
+  username: {
+    type: String,
+    default: 'user'
   }
 })
 
