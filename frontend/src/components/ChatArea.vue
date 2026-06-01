@@ -76,10 +76,6 @@
             <Square :size="20" class="hidden sm:block" />
           </button>
         </div>
-
-        <p class="hidden sm:block text-xs text-gray-400 mt-2 text-center">
-          按 Enter 发送消息
-        </p>
       </div>
     </div>
   </div>
