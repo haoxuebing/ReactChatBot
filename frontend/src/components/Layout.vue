@@ -61,7 +61,7 @@
     </div>
 
     <!-- 主内容区（小屏占满全宽） -->
-    <div class="flex-1 flex flex-col min-w-0 w-full">
+    <div class="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden w-full">
       <header class="h-14 bg-white border-b border-gray-200 flex items-center px-3 md:px-6 gap-2 md:gap-3 shrink-0">
         <button
           @click="mobileSidebarOpen = true"

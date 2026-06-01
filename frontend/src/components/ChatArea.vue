@@ -1,6 +1,6 @@
 <template>
-  <div class="flex-1 flex flex-col h-full bg-white min-w-0">
-    <div v-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center text-gray-400 px-4">
+  <div class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white min-w-0">
+    <div v-if="messages.length === 0" class="flex-1 min-h-0 flex flex-col items-center justify-center text-gray-400 px-4 overflow-y-auto">
       <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white mb-4">
         <Sparkles :size="32" class="md:hidden" />
         <Sparkles :size="40" class="hidden md:block" />
@@ -9,7 +9,7 @@
       <p class="text-sm text-gray-400 text-center">支持联网搜索、计算与日期查询，直接提问即可</p>
     </div>
 
-    <div v-else ref="messagesContainer" class="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+    <div v-else ref="messagesContainer" class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 md:p-6">
       <template v-for="(message, index) in displayMessages" :key="message.id">
         <AgentTurnBubble
           v-if="message.role === 'agent_turn'"
@@ -24,7 +24,7 @@
       </template>
     </div>
     
-    <div class="border-t border-gray-200 p-2 sm:p-3 md:p-4 pb-safe">
+    <div class="shrink-0 border-t border-gray-200 bg-white p-2 sm:p-3 md:p-4 pb-safe">
       <div class="max-w-4xl mx-auto">
         <div class="flex items-end gap-2 sm:gap-3 bg-gray-50 rounded-2xl p-1.5 sm:p-2">
           <button
