@@ -129,8 +129,13 @@ export function shouldSuppressContentDelta(delta) {
   if (!delta) return true
   // 保留仅含空白/换行的 chunk，否则代码换行会在流式拼接时丢失
   if (/^\s+$/.test(delta)) return false
+
   const trimmed = delta.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('```')) return true
+  // 仅过滤工具调用 JSON，勿过滤 ```javascript 等正常代码块
+  if (trimmed.startsWith('{') && /"name"|"arguments"/.test(trimmed)) return true
+  if (/^```(?:json)?\s*\{/.test(trimmed)) return true
+  if (TOOL_CALL_JSON_RE.test(trimmed) || TOOL_CALL_BLOCK_RE.test(delta)) return true
+
   return false
 }
 

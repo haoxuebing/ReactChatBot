@@ -28,14 +28,10 @@
           {{ message.content }}
         </div>
 
-        <div
-          v-else-if="displayContent && isStreaming"
-          class="markdown-content whitespace-pre-wrap"
-        >{{ streamingContent }}</div>
         <MarkdownRenderer
           v-else-if="displayContent"
           :content="displayContent"
-          :render-key="displayContent"
+          :render-key="markdownRenderKey"
           class="markdown-content"
         />
       </div>
@@ -70,11 +66,6 @@ const props = defineProps({
   },
 })
 
-const streamingContent = computed(() => {
-  if (props.message.role !== 'assistant') return props.message.content
-  return sanitizeAssistantContent(props.message.content)
-})
-
 const displayContent = computed(() => {
   if (props.message.role !== 'assistant') return props.message.content
   const cleaned = sanitizeAssistantContent(props.message.content)
@@ -87,4 +78,9 @@ const shouldRender = computed(() => {
 })
 
 const displayTime = computed(() => formatMessageTime(props.message.timestamp))
+
+const markdownRenderKey = computed(() => {
+  const len = displayContent.value?.length ?? 0
+  return props.isStreaming ? `stream-${len}` : `done-${len}-${displayContent.value}`
+})
 </script>
