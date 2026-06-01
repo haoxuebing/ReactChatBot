@@ -9,19 +9,29 @@
       <p class="text-sm text-gray-400 text-center">支持联网搜索、计算与日期查询，直接提问即可</p>
     </div>
 
-    <div v-else ref="messagesContainer" class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 md:p-6">
-      <template v-for="(message, index) in displayMessages" :key="message.id">
-        <AgentTurnBubble
-          v-if="message.role === 'agent_turn'"
-          :message="message"
-          :is-streaming="isLoading && index === displayMessages.length - 1"
-        />
-        <MessageBubble
-          v-else
-          :message="message"
-          :is-streaming="isLoading && index === displayMessages.length - 1"
-        />
-      </template>
+    <div v-else class="flex-1 flex flex-col min-h-0">
+      <div class="shrink-0 z-10 bg-white border-b border-gray-100 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5">
+        <p class="text-xs text-gray-400 text-center">
+          对话次数：{{ turnCount }}
+        </p>
+      </div>
+      <div
+        ref="messagesContainer"
+        class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 md:p-6"
+      >
+        <template v-for="(message, index) in displayMessages" :key="message.id">
+          <AgentTurnBubble
+            v-if="message.role === 'agent_turn'"
+            :message="message"
+            :is-streaming="isLoading && index === displayMessages.length - 1"
+          />
+          <MessageBubble
+            v-else
+            :message="message"
+            :is-streaming="isLoading && index === displayMessages.length - 1"
+          />
+        </template>
+      </div>
     </div>
     
     <div class="shrink-0 border-t border-gray-200 bg-white p-2 sm:p-3 md:p-4 pb-safe">
@@ -98,6 +108,10 @@ const props = defineProps({
 
 const displayMessages = computed(() =>
   groupMessagesForDisplay(props.messages, { isLoading: props.isLoading })
+)
+
+const turnCount = computed(() =>
+  props.messages.filter((m) => m.role === 'user').length
 )
 
 const emit = defineEmits(['send-message', 'clear-history', 'stop-generating'])
