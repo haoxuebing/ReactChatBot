@@ -8,6 +8,8 @@ services:
       - "${APP_PORT:-8081}:80"
     env_file:
       - backend/.env
+    environment:
+      TZ: Asia/Shanghai
     volumes:
       - chat_memory_data:/app/backend/data/chat_memory
     restart: unless-stopped
