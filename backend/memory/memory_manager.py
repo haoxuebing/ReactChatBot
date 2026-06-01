@@ -16,12 +16,19 @@ def _format_timestamp(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _stamp_message(msg: Dict[str, Any], timestamp: str) -> Dict[str, Any]:
-    return {
+def _stamp_message(
+    msg: Dict[str, Any],
+    timestamp: str,
+    client_ip: Optional[str] = None,
+) -> Dict[str, Any]:
+    stamped: Dict[str, Any] = {
         "role": msg["role"],
         "content": msg["content"],
         "timestamp": timestamp,
     }
+    if msg["role"] == "user" and client_ip:
+        stamped["ip"] = client_ip
+    return stamped
 
 
 def normalize_username(username: Optional[str]) -> str:
@@ -156,13 +163,14 @@ class MemoryManager:
         backend: FileBackend,
         user_messages: list[Dict[str, Any]],
         assistant_content: str,
+        client_ip: Optional[str] = None,
     ) -> None:
         """保存对话到记忆"""
         base = datetime.now()
         messages_to_save = []
         for i, msg in enumerate(user_messages):
             ts = _format_timestamp(base + timedelta(seconds=i))
-            messages_to_save.append(_stamp_message(msg, ts))
+            messages_to_save.append(_stamp_message(msg, ts, client_ip))
         messages_to_save.append(
             _stamp_message(
                 {"role": "assistant", "content": assistant_content},

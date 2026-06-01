@@ -440,6 +440,14 @@ async function handleSendMessage(content) {
         }
         
         showToastMessage('消息发送成功')
+      },
+      (clientIp) => {
+        const messages = messagesBySession.value[sessionId]
+        const lastUser = [...messages].reverse().find(m => m.role === 'user')
+        if (lastUser) {
+          lastUser.ip = clientIp
+          messagesBySession.value[sessionId] = [...messages]
+        }
       }
     )
   } catch (e) {

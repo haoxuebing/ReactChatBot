@@ -37,13 +37,16 @@
       </div>
     </div>
 
-    <p
-      v-if="displayTime"
+    <div
+      v-if="displayTime || (message.role === 'user' && message.ip)"
       class="text-xs text-gray-400 mt-1.5"
       :class="message.role === 'user' ? 'text-right mr-10 sm:mr-[3.25rem]' : 'ml-10 sm:ml-[3.25rem]'"
     >
-      {{ displayTime }}
-    </p>
+      <p v-if="displayTime">{{ displayTime }}</p>
+      <p v-if="message.role === 'user' && message.ip" class="mt-0.5">
+        IP: {{ message.ip }}
+      </p>
+    </div>
   </div>
 </template>
 

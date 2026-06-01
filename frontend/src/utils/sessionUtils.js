@@ -19,6 +19,7 @@ export function apiMessagesToLocal(sessionId, messages = []) {
     role: m.role,
     content: m.content,
     timestamp: m.timestamp ?? null,
+    ip: m.ip ?? null,
   }))
 }
 

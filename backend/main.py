@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 from agentscope.model import OpenAIChatModel
 
 from agents import ReActAgent
+from http_utils import get_client_ip
 from memory import MemoryManager
 from schemas import ChatRequest, UsernameRequest, CreateSessionRequest
 
@@ -41,6 +42,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Session-Id", "X-Client-Ip"],
 )
 
 # 初始化核心组件
@@ -104,6 +106,7 @@ async def chat(request: ChatRequest, http_request: Request):
         request.session_id,
         request.username or None,
     )
+    client_ip = get_client_ip(http_request)
 
     # 提取消息
     messages_raw = [m.model_dump() for m in request.messages]
@@ -118,12 +121,6 @@ async def chat(request: ChatRequest, http_request: Request):
         full_messages = system_prompts + full_messages
 
     # 打印请求日志
-    forwarded_for = http_request.headers.get("X-Forwarded-For")
-    client_ip = (
-        forwarded_for.split(",")[0].strip()
-        if forwarded_for
-        else (http_request.client.host if http_request.client else "unknown")
-    )
     logger.info(
         f"[API/CHAT] IP: {client_ip}, Session: {session_id}, Stream: {request.stream}, Messages: {len(full_messages)}"
     )
@@ -143,6 +140,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 memory_backend,
                 user_assistant_messages,
                 result["choices"][0]["message"]["content"],
+                client_ip,
             )
 
         # 添加session_id到响应
@@ -155,7 +153,7 @@ async def chat(request: ChatRequest, http_request: Request):
 
         return JSONResponse(
             content=result,
-            headers={"X-Session-Id": session_id},
+            headers={"X-Session-Id": session_id, "X-Client-Ip": client_ip},
         )
 
     # 流式响应
@@ -182,6 +180,7 @@ async def chat(request: ChatRequest, http_request: Request):
                     memory_backend,
                     user_assistant_messages,
                     saved_text,
+                    client_ip,
                 )
 
         # 打印完整响应日志
@@ -198,6 +197,7 @@ async def chat(request: ChatRequest, http_request: Request):
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
             "X-Session-Id": session_id,
+            "X-Client-Ip": client_ip,
         },
     )
 
@@ -217,7 +217,10 @@ async def delete_session(session_id: str):
 
 
 @app.post("/api/sessions")
-async def create_session(request: CreateSessionRequest):
+async def create_session(
+    request: CreateSessionRequest,
+    http_request: Request,
+):
     """创建并绑定用户会话"""
     try:
         session_id, _ = memory_manager.get_or_create_session(
@@ -226,7 +229,10 @@ async def create_session(request: CreateSessionRequest):
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"session_id": session_id, "username": request.username.strip()[:12]}
+    return {
+        "session_id": session_id,
+        "username": request.username.strip()[:12],
+    }
 
 
 @app.get("/api/sessions")
