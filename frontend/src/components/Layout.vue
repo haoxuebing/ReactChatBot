@@ -114,6 +114,7 @@ import { chatStream, getSessions, getSession, deleteSession, registerUser, creat
 import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolContent } from '../utils/messageUtils'
 import { normalizeSession, apiMessagesToLocal, deriveSessionMetaFromMessages } from '../utils/sessionUtils'
 import { getUsername, hasUsername, clearUsername } from '../utils/userStorage'
+import { messageTimestamp } from '../utils/messageTimestamp'
 
 const sessions = ref([])
 const currentSessionId = ref(null)
@@ -329,7 +330,7 @@ async function handleSendMessage(content) {
     id: Date.now().toString(),
     role: 'user',
     content: content,
-    timestamp: Date.now()
+    timestamp: messageTimestamp()
   }
   
   messagesBySession.value[sessionId].push(userMessage)
@@ -389,7 +390,7 @@ async function handleSendMessage(content) {
               id: Date.now().toString(),
               role: 'assistant',
               content: merged,
-              timestamp: Date.now()
+              timestamp: messageTimestamp()
             })
           }
           messagesBySession.value[sessionId] = [...messages]
@@ -401,7 +402,7 @@ async function handleSendMessage(content) {
           id: Date.now().toString(),
           role: 'assistant',
           content: '发送失败，请重试',
-          timestamp: Date.now()
+          timestamp: messageTimestamp()
         }
         messagesBySession.value[sessionId].push(errorMsg)
         messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
@@ -424,7 +425,7 @@ async function handleSendMessage(content) {
             id: Date.now().toString(),
             role: 'assistant',
             content: '抱歉，未能生成完整回答，请重试。',
-            timestamp: Date.now()
+            timestamp: messageTimestamp()
           })
         }
 
@@ -447,7 +448,7 @@ async function handleSendMessage(content) {
       id: Date.now().toString(),
       role: 'assistant',
       content: '发送失败，请重试',
-      timestamp: Date.now()
+      timestamp: messageTimestamp()
     }
     messagesBySession.value[sessionId].push(errorMsg)
     messagesBySession.value[sessionId] = [...messagesBySession.value[sessionId]]
@@ -475,7 +476,7 @@ function upsertThinkingMessage(messages, content) {
     id: `thinking-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     role: 'thinking',
     content,
-    timestamp: Date.now()
+    timestamp: messageTimestamp()
   })
 }
 
@@ -485,7 +486,7 @@ function upsertToolMessage(messages, toolCall) {
     role: 'tool',
     content: '',
     toolCall,
-    timestamp: Date.now()
+    timestamp: messageTimestamp()
   })
 }
 

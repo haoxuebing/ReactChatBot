@@ -210,7 +210,7 @@ async def list_tools():
 
 @app.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: str):
-    """删除指定会话"""
+    """软删除指定会话（数据保留，不再出现在列表中）"""
     if not memory_manager.delete_session(session_id):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     return {"message": f"Session {session_id} deleted"}

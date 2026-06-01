@@ -1,16 +1,16 @@
 <template>
-  <div v-if="shouldRender" class="flex gap-2 sm:gap-3 mb-4 sm:mb-6">
-    <div class="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white mt-0.5">
-      <Bot :size="18" />
-    </div>
-
-    <div class="flex-1 min-w-0 max-w-3xl space-y-2">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="text-sm font-medium text-gray-700">Agent</span>
-        <span v-if="timestamp" class="text-xs text-gray-400">{{ formatTime(timestamp) }}</span>
+  <div v-if="shouldRender" class="mb-4 sm:mb-6">
+    <div class="flex gap-2 sm:gap-3">
+      <div class="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white mt-0.5">
+        <Bot :size="18" />
       </div>
 
-      <CollapsibleStep
+      <div class="flex-1 min-w-0 max-w-3xl space-y-2">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-medium text-gray-700">Agent</span>
+        </div>
+
+        <CollapsibleStep
         v-for="step in message.processSteps"
         :key="step.id"
         :step="step"
@@ -34,7 +34,12 @@
           class="markdown-content"
         />
       </div>
+      </div>
     </div>
+
+    <p v-if="displayTime" class="text-xs text-gray-400 mt-1.5 ml-10 sm:ml-[2.75rem]">
+      {{ displayTime }}
+    </p>
   </div>
 </template>
 
@@ -45,6 +50,7 @@ import CollapsibleStep from './CollapsibleStep.vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { sanitizeAssistantContent } from '../utils/messageUtils'
 import { formatAssistantMarkdown } from '../utils/formatContent'
+import { formatMessageTime } from '../utils/messageTimestamp'
 
 const props = defineProps({
   message: {
@@ -76,12 +82,8 @@ const shouldRender = computed(() => {
   )
 })
 
-const timestamp = computed(
-  () => props.message.assistant?.timestamp || props.message.processSteps?.at(-1)?.timestamp
-)
-
-function formatTime(ts) {
-  if (!ts) return ''
-  return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
+const displayTime = computed(() => {
+  const ts = props.message.assistant?.timestamp || props.message.processSteps?.at(-1)?.timestamp
+  return formatMessageTime(ts)
+})
 </script>
