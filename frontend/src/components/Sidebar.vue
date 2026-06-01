@@ -55,7 +55,7 @@
       </div>
     </div>
     
-    <div v-if="!collapsed" class="p-3 border-t border-gray-200">
+    <div v-if="!collapsed" class="shrink-0 p-3 border-t border-gray-200 space-y-2">
       <div class="flex items-center gap-2 min-w-0">
         <div class="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
           <User :size="14" class="text-gray-500" />
@@ -70,6 +70,9 @@
           <span>注销</span>
         </button>
       </div>
+      <p class="text-xs text-gray-300 text-center">
+        © 2026 NiceBing
+      </p>
     </div>
     
     <div v-else class="p-3 border-t border-gray-200">
