@@ -70,17 +70,65 @@ function splitWeatherMetrics(text) {
   return result
 }
 
+const SUMMARY_LABELS =
+  '总体趋势|出行建议|温馨提示|总结|补充说明|数据来源'
+
+const SUMMARY_LABELS_RE = new RegExp(SUMMARY_LABELS)
+
 function formatSummarySections(text) {
+  if (new RegExp(`\\*\\*(?:${SUMMARY_LABELS})[：:]`).test(text)) {
+    return text
+  }
   return text.replace(
-    /(?<!\*)\s*((?:总体趋势|出行建议|温馨提示|总结|补充说明|数据来源))[：:](?!\*)/g,
+    new RegExp(`(?<!\\*)\\s*((?:${SUMMARY_LABELS}))[：:](?!\\*)`, 'g'),
     '\n\n**$1：**\n\n'
   )
 }
 
+function normalizeBoldSections(text) {
+  let result = text
+
+  // 总体趋势：** → **总体趋势：**
+  result = result.replace(
+    new RegExp(`(?:^|\\n)\\s*((${SUMMARY_LABELS}))[：:]\\s*\\*\\*`, 'g'),
+    '\n\n**$1：**\n\n'
+  )
+
+  // **总体趋势：** 后紧跟多余的 ** 行或 ** 开头
+  result = result.replace(
+    new RegExp(
+      `(\\*\\*(?:${SUMMARY_LABELS})[：:]\\*\\*)\\s*\\n+\\s*\\*\\*\\s*\\n`,
+      'g'
+    ),
+    '$1\n\n'
+  )
+  result = result.replace(
+    new RegExp(
+      `(\\*\\*(?:${SUMMARY_LABELS})[：:]\\*\\*)\\s*\\n+\\s*\\*\\*\\s+`,
+      'g'
+    ),
+    '$1\n\n'
+  )
+
+  // 纯文本「总体趋势：」标题补全加粗
+  result = result.replace(
+    new RegExp(`(?:^|\\n)\\s*((${SUMMARY_LABELS}))[：:]\\s*\\n(?!\\*\\*)`, 'g'),
+    '\n\n**$1：**\n\n'
+  )
+
+  return result
+}
+
 function cleanupOrphanMarkdown(text) {
-  return text
-    .replace(/^\s*\*\*\s*$/gm, '')
-    .replace(/\n{3,}/g, '\n\n')
+  let result = normalizeBoldSections(text)
+
+  // 单独一行的 **
+  result = result.replace(/^\s*\*\*\s*$/gm, '')
+
+  // 行首 ** 后接空格但本行无闭合 **（破损的开标记）
+  result = result.replace(/^(\s*)\*\*\s+(?=[^\s*].*$)/gm, '$1')
+
+  return result.replace(/\n{3,}/g, '\n\n')
 }
 
 function formatIsoDateRangeIntro(text) {
@@ -140,11 +188,11 @@ export function formatAssistantMarkdown(content) {
     })
 
     text = text.replace(
-      /([。！？\n])(?<!\*)\s*((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])(?!\*)/g,
+      new RegExp(`([。！？\\n])(?<!\\*)\\s*((?:${SUMMARY_LABELS})[：:])(?!\\*)`, 'g'),
       '$1\n\n**$2**\n\n'
     )
     text = text.replace(
-      /(?<!\*)\s+((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])(?!\*)/g,
+      new RegExp(`(?<!\\*)\\s+((?:${SUMMARY_LABELS})[：:])(?!\\*)`, 'g'),
       '\n\n**$1**\n\n'
     )
 
