@@ -1,6 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
-export function chatStream(sessionId, username, messages, onMessage, onError, onComplete, onClientIp) {
+export function chatStream(sessionId, username, messages, onMessage, onError, onComplete) {
   let isStopped = false
   let controller = new AbortController()
 
@@ -30,11 +30,6 @@ export function chatStream(sessionId, username, messages, onMessage, onError, on
         const error = await response.json()
         if (!isStopped) onError(error.detail || '请求失败')
         return
-      }
-
-      const clientIp = response.headers.get('X-Client-Ip')
-      if (clientIp && onClientIp && !isStopped) {
-        onClientIp(clientIp)
       }
 
       const reader = response.body.getReader()
