@@ -11,7 +11,7 @@ from memory.file_backend import FileBackend
 class ReActAgent:
     """ReAct智能体，实现思考-行动循环"""
     
-    MAX_TOOL_ROUNDS = 3
+    MAX_TOOL_ROUNDS = 5
     
     def __init__(self, model: OpenAIChatModel):
         self._model = model

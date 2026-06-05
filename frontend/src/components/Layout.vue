@@ -420,7 +420,7 @@ async function handleSendMessage(content) {
         const hasAssistant = messages.some(
           m => m.role === 'assistant' && sanitizeAssistantContent(m.content)
         )
-        if (!hasAssistant && !messages.some(m => m.role === 'thinking' || m.role === 'tool')) {
+        if (!hasAssistant) {
           messages.push({
             id: Date.now().toString(),
             role: 'assistant',
