@@ -1,17 +1,17 @@
 <template>
-  <div class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white min-w-0">
-    <div v-if="messages.length === 0" class="flex-1 min-h-0 flex flex-col items-center justify-center text-gray-400 px-4 overflow-y-auto">
+  <div class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white dark:bg-gray-900 min-w-0">
+    <div v-if="messages.length === 0" class="flex-1 min-h-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 px-4 overflow-y-auto">
       <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white mb-4">
         <Sparkles :size="32" class="md:hidden" />
         <Sparkles :size="40" class="hidden md:block" />
       </div>
-      <h2 class="text-lg md:text-xl font-semibold text-gray-600 mb-2 text-center">有什么可以帮你的？</h2>
-      <p class="text-sm text-gray-400 text-center">支持联网搜索、计算与日期查询，直接提问即可</p>
+      <h2 class="text-lg md:text-xl font-semibold text-gray-600 dark:text-gray-300 mb-2 text-center">有什么可以帮你的？</h2>
+      <p class="text-sm text-gray-400 dark:text-gray-500 text-center">支持联网搜索、计算与日期查询，直接提问即可</p>
     </div>
 
     <div v-else class="flex-1 flex flex-col min-h-0">
-      <div class="shrink-0 z-10 bg-white border-b border-gray-100 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5">
-        <p class="text-xs text-gray-400 text-center">
+      <div class="shrink-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5">
+        <p class="text-xs text-gray-400 dark:text-gray-500 text-center">
           对话次数：{{ turnCount }}
         </p>
       </div>
@@ -34,12 +34,12 @@
       </div>
     </div>
     
-    <div class="shrink-0 border-t border-gray-200 bg-white p-2 sm:p-3 md:p-4 pb-safe">
+    <div class="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 sm:p-3 md:p-4 pb-safe">
       <div class="max-w-4xl mx-auto">
-        <div class="flex items-end gap-2 sm:gap-3 bg-gray-50 rounded-2xl p-1.5 sm:p-2">
+        <div class="flex items-end gap-2 sm:gap-3 bg-gray-50 dark:bg-gray-800 rounded-2xl p-1.5 sm:p-2">
           <button
             @click="$emit('clear-history')"
-            class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-colors shrink-0"
+            class="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors shrink-0"
             title="清空历史"
           >
             <Trash2 :size="18" class="sm:hidden" />
@@ -50,7 +50,7 @@
             v-model="inputMessage"
             @keydown.enter.exact.prevent="handleSend"
             placeholder="输入消息..."
-            class="flex-1 min-w-0 bg-transparent border-none outline-none resize-none px-1 sm:px-2 py-2 text-sm sm:text-base text-gray-800 placeholder-gray-400"
+            class="flex-1 min-w-0 bg-transparent border-none outline-none resize-none px-1 sm:px-2 py-2 text-sm sm:text-base text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             rows="1"
             ref="inputRef"
             :disabled="isLoading"
@@ -60,7 +60,7 @@
             v-if="!isLoading"
             @click="handleSend"
             :disabled="!inputMessage.trim()"
-            class="p-2 sm:p-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl transition-colors shrink-0"
+            class="p-2 sm:p-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-colors shrink-0"
             title="发送"
           >
             <Send :size="18" class="sm:hidden" />

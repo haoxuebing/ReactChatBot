@@ -21,7 +21,7 @@
         :class="[
           message.role === 'user'
             ? 'bg-blue-500 text-white rounded-tr-sm'
-            : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-tl-sm'
         ]"
       >
         <div v-if="message.role === 'user'" class="text-white whitespace-pre-wrap">
@@ -39,7 +39,7 @@
 
     <div
       v-if="displayTime || (message.role === 'user' && message.ip)"
-      class="text-xs text-gray-400 mt-1.5"
+      class="text-xs text-gray-400 dark:text-gray-500 mt-1.5"
       :class="message.role === 'user' ? 'text-right mr-10 sm:mr-[3.25rem]' : 'ml-10 sm:ml-[3.25rem]'"
     >
       <p v-if="displayTime">{{ displayTime }}</p>

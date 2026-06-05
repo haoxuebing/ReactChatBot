@@ -7,7 +7,7 @@
 
       <div class="flex-1 min-w-0 max-w-3xl space-y-2">
         <div class="flex items-center gap-2 mb-1">
-          <span class="text-sm font-medium text-gray-700">Agent</span>
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Agent</span>
         </div>
 
         <CollapsibleStep
@@ -17,12 +17,12 @@
       />
 
       <div v-if="message.isLoading" class="flex items-center gap-2 py-2">
-        <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
-        <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
-        <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
+        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0ms" />
+        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms" />
+        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms" />
       </div>
 
-      <div v-if="displayContent" class="pt-2 text-gray-800">
+      <div v-if="displayContent" class="pt-2 text-gray-800 dark:text-gray-100">
         <MarkdownRenderer
           :content="displayContent"
           :render-key="markdownRenderKey"
@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <p v-if="displayTime" class="text-xs text-gray-400 mt-1.5 ml-10 sm:ml-[2.75rem]">
+    <p v-if="displayTime" class="text-xs text-gray-400 dark:text-gray-500 mt-1.5 ml-10 sm:ml-[2.75rem]">
       {{ displayTime }}
     </p>
   </div>

@@ -399,4 +399,4 @@ curl -X POST http://localhost:8000/api/chat \
 - **自定义工具**：继承 `BaseTool` 实现 `execute` 方法，并在 `tools/__init__.py` 中注册
 - **鉴权**：在 `/api/chat` 端点前添加 API Key 校验中间件
 - **对话历史上限**：在 `build_messages_with_history` 中限制返回的历史消息条数，控制 token 消耗
-- **深色主题**：在前端中添加深色/浅色主题切换功能
+- **深色主题**：顶部栏右侧提供深色/浅色主题切换按钮，偏好保存在 localStorage
