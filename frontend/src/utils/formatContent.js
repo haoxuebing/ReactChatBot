@@ -55,16 +55,32 @@ function promoteDateTitles(text) {
 }
 
 function splitWeatherMetrics(text) {
-  let result = text.replace(WEATHER_METRIC_SPLIT_RE, '$1\n- ')
+  // 已是列表项或指标已加粗时不再拆分，避免破坏 **天气**： 等 Markdown
+  const listMetricRe = new RegExp(`^-\\s+\\*{0,2}(?:${WEATHER_METRICS})`, 'm')
+  if (listMetricRe.test(text)) {
+    return text
+  }
+
+  const safeSplitRe = new RegExp(
+    `([^\\n-*])(?=(${WEATHER_METRICS})[：:])`,
+    'g'
+  )
+  let result = text.replace(safeSplitRe, '$1\n- ')
   result = result.replace(WEATHER_METRIC_LINE_RE, '$1- $2')
   return result
 }
 
 function formatSummarySections(text) {
   return text.replace(
-    /\s*((?:总体趋势|出行建议|温馨提示|总结|补充说明|数据来源))[：:]/g,
+    /(?<!\*)\s*((?:总体趋势|出行建议|温馨提示|总结|补充说明|数据来源))[：:](?!\*)/g,
     '\n\n**$1：**\n\n'
   )
+}
+
+function cleanupOrphanMarkdown(text) {
+  return text
+    .replace(/^\s*\*\*\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
 }
 
 function formatIsoDateRangeIntro(text) {
@@ -72,6 +88,10 @@ function formatIsoDateRangeIntro(text) {
     /([：:]\s*)(（覆盖[^）\n]+）)/g,
     '$1\n\n$2\n\n'
   )
+}
+
+function isWellFormattedWeatherMarkdown(text) {
+  return /^###\s+\d{4}-\d{2}-\d{2}/m.test(text) && /^-\s+/m.test(text)
 }
 
 export function formatAssistantMarkdown(content) {
@@ -82,6 +102,11 @@ export function formatAssistantMarkdown(content) {
   // 含代码块的内容不做天气/标题类二次格式化，避免破坏代码结构
   if (/```/.test(normalized)) {
     return normalized
+  }
+
+  // 模型已按规范输出 Markdown 列表时，跳过二次拆分
+  if (isWellFormattedWeatherMarkdown(normalized)) {
+    return cleanupOrphanMarkdown(normalized)
   }
 
   return preserveCodeBlocks(normalized, (text) => {
@@ -115,14 +140,15 @@ export function formatAssistantMarkdown(content) {
     })
 
     text = text.replace(
-      /([。！？\n])\s*((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g,
+      /([。！？\n])(?<!\*)\s*((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])(?!\*)/g,
       '$1\n\n**$2**\n\n'
     )
-    text = text.replace(/\s+((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])/g, '\n\n**$1**\n\n')
+    text = text.replace(
+      /(?<!\*)\s+((?:出行建议|温馨提示|总结|补充说明|数据来源)[：:])(?!\*)/g,
+      '\n\n**$1**\n\n'
+    )
 
-    text = text.replace(/\n{3,}/g, '\n\n')
-
-    return text.trim()
+    return cleanupOrphanMarkdown(text).trim()
   })
 }
 

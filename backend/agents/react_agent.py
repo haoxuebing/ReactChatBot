@@ -10,13 +10,28 @@ from memory.file_backend import FileBackend
 
 class ReActAgent:
     """ReAct智能体，实现思考-行动循环"""
-    
+
     MAX_TOOL_ROUNDS = 5
-    
+
+    _WEATHER_KEYWORDS = re.compile(
+        r"天气|气温|温度|下雨|下雪|降雨|降水|预报|几度|冷不冷|热不热|带伞"
+    )
+    _RELATIVE_DAY_MAP = {"今天": 0, "明天": 1, "后天": 2, "大后天": 3}
+    _INVALID_CITIES = frozenset({
+        "天", "未来", "今天", "明天", "后天", "大后天",
+        "天气", "气温", "温度", "下", "的",
+    })
+    _FILLER_PREFIX = re.compile(
+        r"^(?:请|帮我|帮忙|查询下|查一下|查下|查询|看看|想知道|告诉我|请问|说下|说一下|麻烦)"
+        r"[\s，,：:]*"
+    )
+    _CITY_TOKEN = r"[\u4e00-\u9fff]{2,8}(?:市|县|区)?"
+
     def __init__(self, model: OpenAIChatModel):
         self._model = model
         self._tools = {name: cls() for name, cls in tool_registry.items()}
         self._tool_cache: dict[str, str] = {}
+        self._pending_orchestration_events: list[dict[str, Any]] = []
     
     @property
     def tools(self) -> List[Dict[str, Any]]:
@@ -95,7 +110,197 @@ class ReActAgent:
     
     def _tool_cache_key(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         return f"{tool_name}:{json.dumps(arguments, ensure_ascii=False, sort_keys=True)}"
-    
+
+    def _get_last_user_message(self, messages: List[Dict[str, Any]]) -> str:
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                return content if isinstance(content, str) else ""
+        return ""
+
+    def _normalize_city_name(self, raw: str) -> Optional[str]:
+        if not raw:
+            return None
+        city = re.sub(r"的$", "", raw.strip())
+        city = re.sub(r"(市|县|区)$", "", city).strip()
+        if len(city) < 2 or city in self._INVALID_CITIES:
+            return None
+        if re.search(r"未来|天气|气温|温度", city):
+            return None
+        return city
+
+    def _parse_weather_query(self, text: str) -> Optional[Dict[str, Any]]:
+        """解析天气问题中的城市、相对日期、未来 N 天预报。"""
+        if not text or not self._WEATHER_KEYWORDS.search(text):
+            return None
+
+        cleaned = self._FILLER_PREFIX.sub("", text.strip())
+        city: Optional[str] = None
+        days_offset: Optional[int] = None
+        forecast_days: Optional[int] = None
+
+        multi_day = re.match(
+            rf"^({self._CITY_TOKEN})\s*未来\s*(\d+)\s*天",
+            cleaned,
+        )
+        if multi_day:
+            city = self._normalize_city_name(multi_day.group(1))
+            forecast_days = int(multi_day.group(2))
+
+        if not city:
+            city_first = re.match(
+                rf"^({self._CITY_TOKEN})\s*(今天|明天|后天|大后天)",
+                cleaned,
+            )
+            if city_first:
+                city = self._normalize_city_name(city_first.group(1))
+                days_offset = self._RELATIVE_DAY_MAP.get(city_first.group(2))
+
+        if not city:
+            day_first = re.match(
+                rf"^(今天|明天|后天|大后天)\s*({self._CITY_TOKEN})",
+                cleaned,
+            )
+            if day_first:
+                days_offset = self._RELATIVE_DAY_MAP.get(day_first.group(1))
+                city = self._normalize_city_name(day_first.group(2))
+
+        if not city:
+            simple = re.match(
+                rf"^({self._CITY_TOKEN})\s*(?:的\s*)?"
+                r"(?:天气|气温|温度|下雨|下雪|降雨|降水|预报)",
+                cleaned,
+            )
+            if simple:
+                city = self._normalize_city_name(simple.group(1))
+
+        if not city:
+            return None
+
+        result: Dict[str, Any] = {"city": city, "days_offset": days_offset}
+        if forecast_days is not None:
+            result["forecast_days"] = forecast_days
+        return result
+
+    def _extract_date_from_tool_result(self, result: str) -> Optional[str]:
+        match = re.search(r"结果日期[：:]\s*(\d{4}-\d{2}-\d{2})", result)
+        return match.group(1) if match else None
+
+    async def _run_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        *,
+        auto: bool = False,
+    ) -> str:
+        if tool_name not in self._tools:
+            return f"错误：未知工具 '{tool_name}'"
+
+        cache_key = self._tool_cache_key(tool_name, arguments)
+        if cache_key in self._tool_cache:
+            return self._tool_cache[cache_key]
+
+        tool: BaseTool = self._tools[tool_name]
+        try:
+            result = await tool.execute(**arguments)
+            self._tool_cache[cache_key] = result
+            if auto:
+                self._pending_orchestration_events.append({
+                    "thinking": f"正在自动调用 {tool_name} 获取信息…",
+                    "tool_call": {
+                        "name": tool_name,
+                        "arguments": arguments,
+                        "result": result,
+                    },
+                })
+            return result
+        except Exception as e:
+            return f"工具执行错误：{str(e)}"
+
+    async def _prepare_weather_orchestration(self, messages: List[Dict[str, Any]]) -> bool:
+        """天气类问题：自动 date_tool（如需）→ weather_tool，再让模型直接作答。"""
+        parsed = self._parse_weather_query(self._get_last_user_message(messages))
+        if not parsed:
+            return False
+
+        city = parsed["city"]
+        days_offset = parsed.get("days_offset")
+        date_str: Optional[str] = None
+
+        if days_offset is not None and days_offset > 0:
+            date_args = {"action": "add", "days": days_offset}
+            date_result = await self._run_tool("date_tool", date_args, auto=True)
+            messages.append({
+                "role": "system",
+                "content": f"工具执行结果（自动编排-date_tool）：\n{date_result}",
+            })
+            date_str = self._extract_date_from_tool_result(date_result)
+
+        weather_args: Dict[str, Any] = {"city": city}
+        if date_str:
+            weather_args["date"] = date_str
+        weather_result = await self._run_tool("weather_tool", weather_args, auto=True)
+        messages.append({
+            "role": "system",
+            "content": f"工具执行结果（自动编排-weather_tool）：\n{weather_result}",
+        })
+
+        hint = (
+            f"【系统提示】天气查询所需工具已自动完成，请根据上述工具结果"
+            f"直接用 Markdown 组织最终回答，不要再调用 date_tool 或 weather_tool。"
+            f" 用户查询的城市是「{city}」，回答中必须使用工具返回的该城市数据，"
+            f"禁止引用其他城市或历史对话中的天气信息。"
+        )
+        forecast_days = parsed.get("forecast_days")
+        if forecast_days:
+            hint += (
+                f" 用户询问未来 {forecast_days} 天预报，请按天逐条列出天气、温度、风力等信息。"
+            )
+        messages.append({"role": "system", "content": hint})
+        return True
+
+    def _make_tool_chunks(
+        self,
+        chunk_id: Optional[str],
+        thinking: str,
+        tool_call: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": self._model.model_name,
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content_reset": True},
+                    "finish_reason": None,
+                }],
+            },
+            {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": self._model.model_name,
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": "", "thinking": thinking},
+                    "finish_reason": None,
+                }],
+            },
+            {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": self._model.model_name,
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": "", "tool_call": tool_call},
+                    "finish_reason": None,
+                }],
+            },
+        ]
+
     async def _execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """执行工具调用，相同参数在本轮对话中只执行一次"""
         if tool_name not in self._tools:
@@ -121,6 +326,7 @@ class ReActAgent:
     ) -> Any:
         """执行聊天逻辑，支持工具调用"""
         self._tool_cache = {}
+        self._pending_orchestration_events = []
         # 如果有工具，添加工具描述到系统消息
         if self._tools:
             tools_desc = json.dumps(self.tools, ensure_ascii=False)
@@ -171,11 +377,14 @@ class ReActAgent:
                         break
             else:
                 messages.insert(0, {"role": "system", "content": tool_prompt})
-        
+
+        weather_ready = await self._prepare_weather_orchestration(messages)
+        allow_tools = not weather_ready
+
         if stream:
-            return self._chat_stream(messages, memory, tool_round=0, allow_tools=True)
+            return self._chat_stream(messages, memory, tool_round=0, allow_tools=allow_tools)
         else:
-            return await self._chat_non_stream(messages, memory, tool_round=0, allow_tools=True)
+            return await self._chat_non_stream(messages, memory, tool_round=0, allow_tools=allow_tools)
     
     async def _chat_non_stream(
         self,
@@ -246,20 +455,30 @@ class ReActAgent:
         allow_tools: bool = True,
     ) -> AsyncGenerator[str, None]:
         """流式聊天"""
-        full_text = ""
         chunk_id = None
+        if self._pending_orchestration_events:
+            for event in self._pending_orchestration_events:
+                for out_chunk in self._make_tool_chunks(
+                    chunk_id,
+                    event["thinking"],
+                    event["tool_call"],
+                ):
+                    yield out_chunk
+            self._pending_orchestration_events = []
+
+        full_text = ""
         sent_length = 0
         suppress_stream = False
-        
+
         stream = await self._model(messages)
         async for chunk in stream:
             if chunk_id is None:
                 chunk_id = getattr(chunk, "id", None)
-            
+
             for block in chunk.content:
                 if block["type"] == "text":
                     full_text = block["text"]
-                    if allow_tools and self._looks_like_tool_call(full_text):
+                    if self._looks_like_tool_call(full_text):
                         suppress_stream = True
                     if not suppress_stream:
                         delta = full_text[sent_length:]
