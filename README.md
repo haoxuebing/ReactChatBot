@@ -2,6 +2,8 @@
 
 基于 FastAPI + AgentScope + Vue 构建的大模型对话应用，支持 **ReAct 智能体**（思考-行动循环）、**工具调用**、**SSE 流式响应**和**会话记忆管理**。
 
+![Web UI 截图](docs/web-ui-screenshot.png)
+
 ## 功能特性
 
 - **ReAct 智能体** — 自主思考-行动循环，根据问题自动决定是否调用工具
