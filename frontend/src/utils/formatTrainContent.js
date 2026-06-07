@@ -78,7 +78,12 @@ function parsePipeTrainRow(line) {
   const route = parts[0] || ''
   const timePart = parts[1] || ''
   const duration = parts[2] || ''
-  const seats = parts.slice(3)
+  const seatLabels = ['二等座', '一等座', '商务座', '无座']
+  const seats = parts.slice(3).map((seat, index) => {
+    if (/座|无座/.test(seat)) return seat
+    const label = seatLabels[index] || `席别${index + 1}`
+    return `${label} ${seat}`
+  })
 
   const timeMatch = timePart.match(/(\d{1,2}:\d{2})\s*[-–—→]\s*(\d{1,2}:\d{2})/)
   const depart = timeMatch?.[1] || timePart
