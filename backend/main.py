@@ -2,6 +2,7 @@ import json
 import os
 import time
 import logging
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
@@ -23,14 +24,29 @@ from agents import ReActAgent
 from http_utils import get_client_ip
 from memory import MemoryManager
 from schemas import ChatRequest, UsernameRequest, CreateSessionRequest
+from tools.mcp_loader import load_mcp_tools
 
 # 加载环境变量
 load_dotenv()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        mcp_tools = await load_mcp_tools()
+        if mcp_tools:
+            agent.register_tools(mcp_tools)
+            logger.info("已注册 MCP 工具: %s", list(mcp_tools.keys()))
+    except Exception:
+        logger.exception("MCP 初始化失败，服务将继续运行但不包含 MCP 工具")
+    yield
+
 
 # 创建FastAPI应用（文档路径见 .env；设为空字符串可关闭对应页面）
 app = FastAPI(
     title="AgentScope Chat API",
     version="2.0",
+    lifespan=lifespan,
     docs_url=os.getenv("DOCS_URL", "/docs") or None,
     redoc_url=os.getenv("REDOC_URL", "/redoc") or None,
     openapi_url=os.getenv("OPENAPI_URL", "/openapi.json") or None,

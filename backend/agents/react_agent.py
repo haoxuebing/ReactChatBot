@@ -32,7 +32,11 @@ class ReActAgent:
         self._tools = {name: cls() for name, cls in tool_registry.items()}
         self._tool_cache: dict[str, str] = {}
         self._pending_orchestration_events: list[dict[str, Any]] = []
-    
+
+    def register_tools(self, extra_tools: dict[str, BaseTool]) -> None:
+        """注册额外工具（如 MCP）。"""
+        self._tools.update(extra_tools)
+
     @property
     def tools(self) -> List[Dict[str, Any]]:
         """获取所有可用工具的描述"""
@@ -355,6 +359,7 @@ class ReActAgent:
 - 问「明天/后天」日期：直接用 date_tool 的 add，days 设为 1 或 2，无需先调用 now，也无需传 date_str
 - 查询天气：使用 weather_tool；若用户问明天/后天，先用 date_tool 算出 YYYY-MM-DD 再传入 date 参数；不要用 web_search 查天气
 - 查询新闻等非天气信息：使用 web_search，搜索词加上年份等具体关键词，避免「明天」「后天」等相对时间词
+- 查询火车票、车次、余票、车站信息：使用 12306 MCP 工具；日期不明确时先用 date_tool 获取或推算 YYYY-MM-DD；站名不明确时可先调用车站查询类工具
 - 已有工具返回结果时，禁止再次调用相同工具和相同参数
 
 【回答格式】
@@ -366,7 +371,12 @@ class ReActAgent:
   - 天气：白天多云，夜间晴
   - 温度：22°C ~ 33°C
   - 风力：南风 1-3 级
-- 结尾可加 **总体趋势：** 一段简短总结"""
+- 结尾可加 **总体趋势：** 一段简短总结
+- 火车票/车次回答：**禁止使用 Markdown 表格**；按时段用 ### 分段（如 ### 🌙 晚间出发），每个车次用引用块展示，格式如下：
+  > **G19** · 北京南 → 上海虹桥
+  > - 时间：14:00 → 18:32（4小时32分）
+  > - 票价：二等座 有票 ¥661 · 一等座 有票 ¥1058
+  结尾用 **💡 温馨提示：** 给出 1-2 条出行建议"""
             
             # 查找或创建系统消息
             system_msg_exists = any(m["role"] == "system" for m in messages)

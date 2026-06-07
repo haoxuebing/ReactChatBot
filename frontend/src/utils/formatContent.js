@@ -1,3 +1,5 @@
+import { formatTrainTicketMarkdown, isTrainTicketContent } from './formatTrainContent'
+
 const EMOJI_ITEM_RE = /([🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈]\s*[^：:\n]{1,24}[：:])/g
 
 const WEATHER_METRICS =
@@ -17,6 +19,11 @@ const ISO_DATE_TITLE_RE =
   /(\d{4}-\d{2}-\d{2})(?:[（(]([^）)\n]+)[）)])?/g
 
 const CODE_BLOCK_PLACEHOLDER = (index) => `\x00CODEBLOCK${index}\x00`
+const TABLE_BLOCK_PLACEHOLDER = (index) => `\x00TABLEBLOCK${index}\x00`
+
+function isMarkdownTableLine(line) {
+  return /^\s*\|.+\|\s*$/.test(line)
+}
 
 function preserveCodeBlocks(text, transform) {
   const blocks = []
@@ -31,6 +38,46 @@ function preserveCodeBlocks(text, transform) {
     result = result.replace(CODE_BLOCK_PLACEHOLDER(index), () => block)
   })
   return result
+}
+
+function preserveMarkdownTableBlocks(text, transform) {
+  const lines = text.split('\n')
+  const blocks = []
+  const rebuilt = []
+
+  for (let i = 0; i < lines.length; ) {
+    if (!isMarkdownTableLine(lines[i])) {
+      rebuilt.push(lines[i])
+      i += 1
+      continue
+    }
+
+    const tableLines = []
+    while (i < lines.length && isMarkdownTableLine(lines[i])) {
+      tableLines.push(lines[i])
+      i += 1
+    }
+
+    const index = blocks.length
+    blocks.push(tableLines.join('\n'))
+    rebuilt.push(TABLE_BLOCK_PLACEHOLDER(index))
+  }
+
+  let result = transform(rebuilt.join('\n'))
+  blocks.forEach((block, index) => {
+    result = result.replace(TABLE_BLOCK_PLACEHOLDER(index), () => block)
+  })
+  return result
+}
+
+function replaceStandaloneHorizontalRules(text) {
+  return text
+    .split('\n')
+    .map((line) => {
+      if (isMarkdownTableLine(line)) return line
+      return line.replace(/\s*---+\s*/g, '\n\n---\n\n')
+    })
+    .join('\n')
 }
 
 function splitInlineHeaders(text) {
@@ -152,52 +199,60 @@ export function formatAssistantMarkdown(content) {
     return normalized
   }
 
+  if (isTrainTicketContent(normalized)) {
+    const formatted = /^>\s*\*\*[GDC]/m.test(normalized)
+      ? normalized
+      : formatTrainTicketMarkdown(normalized)
+    return cleanupOrphanMarkdown(formatted)
+  }
+
   // 模型已按规范输出 Markdown 列表时，跳过二次拆分
   if (isWellFormattedWeatherMarkdown(normalized)) {
     return cleanupOrphanMarkdown(normalized)
   }
 
-  return preserveCodeBlocks(normalized, (text) => {
-    text = text.replace(/\s*---+\s*/g, '\n\n---\n\n')
+  return preserveCodeBlocks(normalized, (text) =>
+    preserveMarkdownTableBlocks(text, (inner) => {
+      inner = replaceStandaloneHorizontalRules(inner)
+      inner = splitInlineHeaders(inner)
+      inner = promoteDateTitles(inner)
+      inner = formatIsoDateRangeIntro(inner)
 
-    text = splitInlineHeaders(text)
-    text = promoteDateTitles(text)
-    text = formatIsoDateRangeIntro(text)
+      inner = inner.replace(
+        /([：:]\s*)(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
+        '$1\n\n### $2\n\n'
+      )
+      inner = inner.replace(
+        /([。！？；\n])\s*(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
+        '$1\n\n### $2\n\n'
+      )
+      inner = inner.replace(/^(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/m, '### $1\n\n')
 
-    text = text.replace(
-      /([：:]\s*)(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
-      '$1\n\n### $2\n\n'
-    )
-    text = text.replace(
-      /([。！？；\n])\s*(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/g,
-      '$1\n\n### $2\n\n'
-    )
-    text = text.replace(/^(\d{1,2}月\d{1,2}日[（(][^）)\n]+[）)])/m, '### $1\n\n')
+      inner = inner.replace(
+        /([。！？；\n])\s*(\d{4}年\d{1,2}月\d{1,2}日)/g,
+        '$1\n\n### $2\n\n'
+      )
 
-    text = text.replace(
-      /([。！？；\n])\s*(\d{4}年\d{1,2}月\d{1,2}日)/g,
-      '$1\n\n### $2\n\n'
-    )
+      inner = splitWeatherMetrics(inner)
+      inner = formatSummarySections(inner)
 
-    text = splitWeatherMetrics(text)
-    text = formatSummarySections(text)
+      inner = inner.replace(/([。；！？\n])\s*(?=[🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈])/g, '$1\n')
+      inner = inner.replace(EMOJI_ITEM_RE, (match) => {
+        return match.startsWith('- ') ? match : `- ${match.trim()}`
+      })
 
-    text = text.replace(/([。；！？\n])\s*(?=[🌡️☁️💧🍃☀️🌙📅⚠️✅❌🔍💡🌧️⛅🌤️❄️🌈])/g, '$1\n')
-    text = text.replace(EMOJI_ITEM_RE, (match) => {
-      return match.startsWith('- ') ? match : `- ${match.trim()}`
+      inner = inner.replace(
+        new RegExp(`([。！？\\n])(?<!\\*)\\s*((?:${SUMMARY_LABELS})[：:])(?!\\*)`, 'g'),
+        '$1\n\n**$2**\n\n'
+      )
+      inner = inner.replace(
+        new RegExp(`(?<!\\*)\\s+((?:${SUMMARY_LABELS})[：:])(?!\\*)`, 'g'),
+        '\n\n**$1**\n\n'
+      )
+
+      return cleanupOrphanMarkdown(inner).trim()
     })
-
-    text = text.replace(
-      new RegExp(`([。！？\\n])(?<!\\*)\\s*((?:${SUMMARY_LABELS})[：:])(?!\\*)`, 'g'),
-      '$1\n\n**$2**\n\n'
-    )
-    text = text.replace(
-      new RegExp(`(?<!\\*)\\s+((?:${SUMMARY_LABELS})[：:])(?!\\*)`, 'g'),
-      '\n\n**$1**\n\n'
-    )
-
-    return cleanupOrphanMarkdown(text).trim()
-  })
+  )
 }
 
 /** @internal test helper */
