@@ -53,6 +53,9 @@ OPENAPI_URL=/openapi.json
 # 可选：12306 火车票 MCP（ModelScope Hosted MCP，Remote + Streamable HTTP）
 # MCP_12306_URL=https://mcp.api-inference.modelscope.net/your-token/mcp
 
+# 可选：全球酒店预订 MCP（ModelScope Hosted MCP，Remote + Streamable HTTP）
+# MCP_HOTEL_URL=https://mcp.api-inference.modelscope.net/your-token/mcp
+
 # 可选：聊天记录存储目录，默认为 backend/data/chat_memory
 # MEMORY_DATA_DIR=./data/chat_memory
 ```
@@ -397,6 +400,7 @@ curl -X POST http://localhost:8000/api/chat \
 | 天气查询 | `weather_tool` | 国内城市实时天气与逐日预报（和风天气 API） |
 | 网络搜索 | `web_search` | 必应中文搜索，自动抓取 Top 结果正文，无需 API Key |
 | 12306 MCP | `get-tickets` 等 | 火车票/车次/车站查询（需配置 `MCP_12306_URL`） |
+| 酒店 MCP | `searchHotels` 等 | 全球酒店搜索、价格查询与预订（需配置 `MCP_HOTEL_URL`） |
 
 ## 扩展建议
 

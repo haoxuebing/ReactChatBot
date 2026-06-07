@@ -11,7 +11,11 @@ from memory.file_backend import FileBackend
 class ReActAgent:
     """ReAct智能体，实现思考-行动循环"""
 
-    MAX_TOOL_ROUNDS = 5
+    MAX_TOOL_ROUNDS = 10
+    _SINGLE_CALL_TOOLS = frozenset({
+        "searchHotels",
+        "getHotelSearchTags",
+    })
 
     _WEATHER_KEYWORDS = re.compile(
         r"天气|气温|温度|下雨|下雪|降雨|降水|预报|几度|冷不冷|热不热|带伞"
@@ -31,6 +35,7 @@ class ReActAgent:
         self._model = model
         self._tools = {name: cls() for name, cls in tool_registry.items()}
         self._tool_cache: dict[str, str] = {}
+        self._single_call_tools_used: set[str] = set()
         self._pending_orchestration_events: list[dict[str, Any]] = []
 
     def register_tools(self, extra_tools: dict[str, BaseTool]) -> None:
@@ -310,14 +315,25 @@ class ReActAgent:
         if tool_name not in self._tools:
             return f"错误：未知工具 '{tool_name}'"
 
+        if (
+            tool_name in self._SINGLE_CALL_TOOLS
+            and tool_name in self._single_call_tools_used
+        ):
+            return (
+                f"本轮对话已调用过 {tool_name}，请根据之前的工具结果直接回答用户，"
+                f"不要再次调用该工具。"
+            )
+
         cache_key = self._tool_cache_key(tool_name, arguments)
         if cache_key in self._tool_cache:
             return self._tool_cache[cache_key]
-        
+
         tool: BaseTool = self._tools[tool_name]
         try:
             result = await tool.execute(**arguments)
             self._tool_cache[cache_key] = result
+            if tool_name in self._SINGLE_CALL_TOOLS:
+                self._single_call_tools_used.add(tool_name)
             return result
         except Exception as e:
             return f"工具执行错误：{str(e)}"
@@ -330,6 +346,7 @@ class ReActAgent:
     ) -> Any:
         """执行聊天逻辑，支持工具调用"""
         self._tool_cache = {}
+        self._single_call_tools_used = set()
         self._pending_orchestration_events = []
         # 如果有工具，添加工具描述到系统消息
         if self._tools:
@@ -360,6 +377,9 @@ class ReActAgent:
 - 查询天气：使用 weather_tool；若用户问明天/后天，先用 date_tool 算出 YYYY-MM-DD 再传入 date 参数；不要用 web_search 查天气
 - 查询新闻等非天气信息：使用 web_search，搜索词加上年份等具体关键词，避免「明天」「后天」等相对时间词
 - 查询火车票、车次、余票、车站信息：使用 12306 MCP 工具；日期不明确时先用 date_tool 获取或推算 YYYY-MM-DD；站名不明确时可先调用车站查询类工具
+- 按区域/条件找酒店：用 searchHotels，每轮最多 1 次；示例：{{"name":"searchHotels","arguments":{{"place":"上海外滩","countryCode":"CN","checkInParam":{{"checkInDate":"2026-06-10","stayNights":1,"adultCount":2}},"filterOptions":{{"starRatings":[5.0,5.0]}}}}}}
+- 查询**具体某家酒店**的价格/房型：用 getHotelDetail；若只有酒店名用 name 参数，若已从 searchHotels 拿到 hotelId 则优先传 hotelId；示例：{{"name":"getHotelDetail","arguments":{{"name":"重庆光成酒店","dateParam":{{"checkInDate":"2026-06-11","checkOutDate":"2026-06-12"}}}}}}
+- getHotelDetail 可按需多次调用（如换酒店名、换 hotelId、换日期），但相同参数不要重复调用；若暂无房型可换日期或先用 searchHotels 找 hotelId 再查详情
 - 已有工具返回结果时，禁止再次调用相同工具和相同参数
 
 【回答格式】
@@ -376,7 +396,13 @@ class ReActAgent:
   > **G19** · 北京南 → 上海虹桥
   > - 时间：14:00 → 18:32（4小时32分）
   > - 票价：二等座 有票 ¥661 · 一等座 有票 ¥1058
-  结尾用 **💡 温馨提示：** 给出 1-2 条出行建议"""
+  结尾用 **💡 温馨提示：** 给出 1-2 条出行建议
+- 酒店推荐/预订回答：**禁止使用 Markdown 表格**；每家酒店用引用块展示，格式如下：
+  > **上海外滩华尔道夫酒店** · ⭐⭐⭐⭐⭐
+  > - 地址：上海市黄浦区中山东一路2号
+  > - 入住：2026-06-10 → 离店：2026-06-12（2晚）
+  > - 价格：¥2,880/晚起 · 含早 · 可免费取消
+  可按价格/评分/位置分组，结尾用 **💡 预订建议：** 给出 1-2 条建议"""
             
             # 查找或创建系统消息
             system_msg_exists = any(m["role"] == "system" for m in messages)
