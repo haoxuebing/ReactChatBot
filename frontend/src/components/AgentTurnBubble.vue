@@ -16,18 +16,18 @@
         :step="step"
       />
 
-      <div v-if="message.isLoading" class="flex items-center gap-2 py-2">
-        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0ms" />
-        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms" />
-        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms" />
-      </div>
-
       <div v-if="displayContent" class="pt-2 text-gray-800 dark:text-gray-100">
         <MarkdownRenderer
           :content="displayContent"
           :render-key="markdownRenderKey"
           class="markdown-content"
         />
+      </div>
+
+      <div v-if="isStreaming" class="flex items-center gap-2 py-2">
+        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0ms" />
+        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms" />
+        <span class="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms" />
       </div>
       </div>
     </div>
@@ -68,6 +68,7 @@ const shouldRender = computed(() => {
   return (
     props.message.processSteps?.length > 0
     || props.message.isLoading
+    || props.isStreaming
     || !!displayContent.value
   )
 })

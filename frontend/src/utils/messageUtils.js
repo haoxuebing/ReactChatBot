@@ -46,7 +46,7 @@ export function groupMessagesForDisplay(messages, options = {}) {
       ? !!sanitizeAssistantContent(turn.assistant.content)
       : false
     const hasProcess = turn.processSteps.length > 0
-    const showLoading = isLastTurn && isLoading && !hasAssistantContent
+    const showLoading = isLastTurn && isLoading
 
     if (hasProcess || hasAssistantContent || showLoading) {
       result.push({
