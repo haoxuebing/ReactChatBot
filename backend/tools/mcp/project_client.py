@@ -1,3 +1,4 @@
+import mcp.types
 from pydantic import Field
 
 from agentscope.mcp import MCPClient
@@ -12,6 +13,25 @@ class ProjectMCPClient(MCPClient):
         default="generic",
         description="业务类型：12306 / hotel / generic",
     )
+
+    def _filter_cached_tools(
+        self,
+        tools: list[mcp.types.Tool],
+    ) -> list[mcp.types.Tool]:
+        available = tools
+        if self.enable_tools is not None:
+            available = [tool for tool in available if tool.name in self.enable_tools]
+        if self.disable_tools is not None:
+            available = [
+                tool for tool in available if tool.name not in self.disable_tools
+            ]
+        return available
+
+    async def list_raw_tools(self) -> list[mcp.types.Tool]:
+        """复用已缓存的工具列表，避免 stateless 模式下重复建立 MCP 连接。"""
+        if self._cached_tools is not None:
+            return self._filter_cached_tools(self._cached_tools)
+        return await super().list_raw_tools()
 
     async def get_tool(self, name: str) -> EnhancedMCPTool:
         if self._cached_tools is None:

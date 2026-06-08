@@ -45,8 +45,16 @@ async def lifespan(app: FastAPI):
             logger.warning("以下 MCP 服务不可用，已跳过注册: %s", skipped)
         toolkit = build_toolkit(mcp_clients=healthy_clients)
         agent = ReActAgent(model, toolkit=toolkit)
-        tool_names = [s["function"]["name"] for s in await agent.list_tools_async()]
-        logger.info("AgentScope 2.0 智能体已初始化，工具: %s", tool_names)
+        builtin_tools = [tool.name for tool in toolkit.tool_groups[0].tools]
+        mcp_tools = [
+            f"mcp__{name}__{tool_name}"
+            for name, tool_names in mcp_summary.items()
+            for tool_name in tool_names
+        ]
+        logger.info(
+            "AgentScope 2.0 智能体已初始化，工具: %s",
+            builtin_tools + mcp_tools,
+        )
         if mcp_summary:
             logger.info("MCP 工具探测结果: %s", mcp_summary)
     except Exception:
