@@ -285,6 +285,15 @@ async def get_session(session_id: str):
     return {"session": result}
 
 
+@app.get("/api/sessions/{session_id}/share")
+async def get_shared_session(session_id: str):
+    """获取用于公开分享的会话（只读、脱敏）"""
+    result = await memory_manager.get_session_for_share(session_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return {"session": result}
+
+
 @app.post("/api/users")
 async def register_user(request: UsernameRequest):
     """注册用户名"""

@@ -247,6 +247,41 @@ class MemoryManager:
             "messages": history,
         }
 
+    def _sanitize_messages_for_share(
+        self, messages: list[Dict[str, Any]]
+    ) -> list[Dict[str, Any]]:
+        """分享视图：移除 IP 等敏感字段，仅保留展示所需内容"""
+        sanitized = []
+        for msg in messages:
+            item: Dict[str, Any] = {
+                "role": msg["role"],
+                "content": msg["content"],
+            }
+            if msg.get("timestamp"):
+                item["timestamp"] = msg["timestamp"]
+            sanitized.append(item)
+        return sanitized
+
+    async def get_session_for_share(self, session_id: str) -> Dict[str, Any]:
+        """获取用于公开分享的会话（脱敏，不含用户名与 IP）"""
+        if self._is_deleted(session_id):
+            return {"error": f"Session '{session_id}' not found"}
+        if not self._session_file_exists(session_id) and session_id not in self._sessions:
+            return {"error": f"Session '{session_id}' not found"}
+
+        backend = self._get_backend(session_id)
+        history = await backend.get_history()
+        if not history:
+            return {"error": "Session has no messages to share"}
+
+        summary = await self._build_session_summary(session_id, backend)
+        return {
+            "session_id": session_id,
+            "name": summary["name"],
+            "message_count": backend.get_message_count(),
+            "messages": self._sanitize_messages_for_share(history),
+        }
+
     def delete_session(self, session_id: str) -> bool:
         """软删除指定会话（保留文件，仅从列表隐藏）"""
         if self._is_deleted(session_id):

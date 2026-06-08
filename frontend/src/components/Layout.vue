@@ -81,6 +81,15 @@
           </h1>
         </div>
         <ThemeToggle />
+        <button
+          v-if="currentSessionId && currentMessages.length > 0"
+          @click="handleShareSession"
+          class="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors shrink-0"
+          title="分享会话"
+          aria-label="分享会话"
+        >
+          <Share2 :size="20" />
+        </button>
       </header>
 
       <ChatArea
@@ -112,7 +121,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { MessageCircle, ChevronLeft, ChevronRight, Menu } from 'lucide-vue-next'
+import { MessageCircle, ChevronLeft, ChevronRight, Menu, Share2 } from 'lucide-vue-next'
 import Sidebar from './Sidebar.vue'
 import ChatArea from './ChatArea.vue'
 import UsernameSetupModal from './UsernameSetupModal.vue'
@@ -122,6 +131,7 @@ import { sanitizeAssistantContent, shouldSuppressContentDelta, stripLeakedToolCo
 import { normalizeSession, apiMessagesToLocal, deriveSessionMetaFromMessages } from '../utils/sessionUtils'
 import { ensureUsername, saveUsername, addRecentUser, getRecentUsers } from '../utils/userStorage'
 import { messageTimestamp } from '../utils/messageTimestamp'
+import { copyShareLink } from '../utils/shareUtils'
 
 const sessions = ref([])
 const currentSessionId = ref(null)
@@ -543,6 +553,18 @@ function showToastMessage(message) {
   setTimeout(() => {
     showToast.value = false
   }, 2000)
+}
+
+async function handleShareSession() {
+  if (!currentSessionId.value) return
+
+  try {
+    await copyShareLink(currentSessionId.value)
+    showToastMessage('分享链接已复制')
+  } catch (e) {
+    console.error('复制分享链接失败:', e)
+    showToastMessage('复制链接失败')
+  }
 }
 
 function handleStopGenerating() {

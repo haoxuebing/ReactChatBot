@@ -140,6 +140,17 @@ export async function getSession(sessionId) {
   return await response.json()
 }
 
+export async function getSharedSession(sessionId) {
+  const response = await fetch(`${BASE_URL}/sessions/${sessionId}/share`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取分享会话失败')
+  }
+
+  return await response.json()
+}
+
 export async function deleteSession(sessionId) {
   const response = await fetch(`${BASE_URL}/sessions/${sessionId}`, {
     method: 'DELETE',
