@@ -3,8 +3,6 @@ import os
 import time
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,27 +16,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from agentscope.credential import OpenAICredential
 from agentscope.model import OpenAIChatModel
 
 from agents import ReActAgent
 from http_utils import get_client_ip
 from memory import MemoryManager
 from schemas import ChatRequest, UsernameRequest, CreateSessionRequest
-from tools.mcp_loader import load_mcp_tools
+from tools import build_toolkit, build_mcp_clients, verify_mcp_clients
 
 # 加载环境变量
 load_dotenv()
 
+agent: ReActAgent | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global agent
     try:
-        mcp_tools = await load_mcp_tools()
-        if mcp_tools:
-            agent.register_tools(mcp_tools)
-            logger.info("已注册 MCP 工具: %s", list(mcp_tools.keys()))
+        mcp_clients = build_mcp_clients()
+        mcp_summary = await verify_mcp_clients(mcp_clients)
+        healthy_clients = [
+            client for client in mcp_clients if mcp_summary.get(client.name)
+        ]
+        if len(healthy_clients) < len(mcp_clients):
+            skipped = [c.name for c in mcp_clients if c not in healthy_clients]
+            logger.warning("以下 MCP 服务不可用，已跳过注册: %s", skipped)
+        toolkit = build_toolkit(mcp_clients=healthy_clients)
+        agent = ReActAgent(model, toolkit=toolkit)
+        tool_names = [s["function"]["name"] for s in await agent.list_tools_async()]
+        logger.info("AgentScope 2.0 智能体已初始化，工具: %s", tool_names)
+        if mcp_summary:
+            logger.info("MCP 工具探测结果: %s", mcp_summary)
     except Exception:
-        logger.exception("MCP 初始化失败，服务将继续运行但不包含 MCP 工具")
+        logger.exception("智能体初始化失败")
+        raise
     yield
 
 
@@ -63,18 +76,23 @@ app.add_middleware(
 
 # 初始化核心组件
 model = OpenAIChatModel(
-    model_name=os.getenv("LLM_MODEL", "deepseek-v4-flash"),
-    api_key=os.getenv("LLM_API_KEY"),
+    credential=OpenAICredential(
+        api_key=os.getenv("LLM_API_KEY", ""),
+        base_url=os.getenv("LLM_BASE_URL", "https://api.deepseek.com"),
+    ),
+    model=os.getenv("LLM_MODEL", "deepseek-v4-flash"),
     stream=True,
-    client_kwargs={
-        "base_url": os.getenv("LLM_BASE_URL", "https://api.deepseek.com"),
-    },
 )
 
 memory_manager = MemoryManager(
     data_dir=os.getenv("MEMORY_DATA_DIR"),
 )
-agent = ReActAgent(model)
+
+
+def _get_agent() -> ReActAgent:
+    if agent is None:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    return agent
 
 
 def _make_sse_chunk(
@@ -95,28 +113,17 @@ def _make_sse_chunk(
         "session_id": session_id,
         "object": "chat.completion.chunk",
         "created": int(time.time()),
-        "model": model.model_name,
+        "model": model.model,
         "choices": [choice],
     }
     return json.dumps(payload, ensure_ascii=False)
 
 
-async def sse_stream_wrapper(
-    agent_stream: AsyncGenerator[dict, None],
-    session_id: str,
-) -> AsyncGenerator[str, None]:
-    """SSE流包装器"""
-    async for chunk in agent_stream:
-        choice = chunk["choices"][0]
-        delta = choice.get("delta", {})
-        yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, delta, choice.get('finish_reason'))}\n\n"
-
-    yield "data: [DONE]\n\n"
-
-
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request):
     """智能体聊天接口（V2）"""
+    chat_agent = _get_agent()
+
     # 获取或创建会话
     session_id, memory_backend = memory_manager.get_or_create_session(
         request.session_id,
@@ -148,7 +155,7 @@ async def chat(request: ChatRequest, http_request: Request):
     # 调用智能体
     if not request.stream:
         # 非流式响应
-        result = await agent.chat(full_messages, memory_backend, stream=False)
+        result = await chat_agent.chat(full_messages, stream=False)
 
         # 保存到记忆
         if result["choices"][0]["message"]["content"]:
@@ -176,32 +183,35 @@ async def chat(request: ChatRequest, http_request: Request):
     async def streaming_response():
         full_text = ""
         chunk_count = 0
-        async for chunk in await agent.chat(full_messages, memory_backend, stream=True):
-            choice = chunk["choices"][0]
-            delta = choice.get("delta", {})
-            content = delta.get("content", "")
-            if content and not delta.get("content_reset"):
-                full_text += content
-                chunk_count += 1
-                if chunk_count % 5 == 0 or len(full_text) > 100:
-                    # logger.info(f"[API/CHAT] Stream chunk #{chunk_count}, Total length: {len(full_text)}")
-                    chunk_count = 0
-            yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, delta, choice.get('finish_reason'))}\n\n"
+        try:
+            async for chunk in await chat_agent.chat(full_messages, stream=True):
+                choice = chunk["choices"][0]
+                delta = choice.get("delta", {})
+                content = delta.get("content", "")
+                if content and not delta.get("content_reset"):
+                    full_text += content
+                    chunk_count += 1
+                    if chunk_count % 5 == 0 or len(full_text) > 100:
+                        chunk_count = 0
+                yield f"data: {_make_sse_chunk(chunk.get('id'), session_id, delta, choice.get('finish_reason'))}\n\n"
+        except Exception:
+            logger.exception("[API/CHAT] Stream failed")
+            if not full_text:
+                full_text = "抱歉，处理请求时发生错误，请稍后重试。"
+                yield f"data: {_make_sse_chunk(None, session_id, {'content': full_text}, 'stop')}\n\n"
+            yield "data: [DONE]\n\n"
+            return
 
-        # 保存到记忆（过滤误输出的工具 JSON）
-        if full_text:
-            saved_text = agent._strip_tool_call_text(full_text) or full_text
-            if not saved_text.strip().startswith("{"):
-                await memory_manager.save_to_memory(
-                    memory_backend,
-                    user_assistant_messages,
-                    saved_text,
-                    client_ip,
-                )
+        # 保存到记忆
+        if full_text and not full_text.strip().startswith("{"):
+            await memory_manager.save_to_memory(
+                memory_backend,
+                user_assistant_messages,
+                full_text,
+                client_ip,
+            )
 
-        # 打印完整响应日志
-        log_text = agent._strip_tool_call_text(full_text) or full_text
-        logger.info(f"[API/CHAT] Stream completed. Total response: {log_text[:200]}...")
+        logger.info(f"[API/CHAT] Stream completed. Total response: {full_text[:200]}...")
 
         yield "data: [DONE]\n\n"
 
@@ -221,7 +231,8 @@ async def chat(request: ChatRequest, http_request: Request):
 @app.get("/api/tools")
 async def list_tools():
     """获取可用工具列表"""
-    return {"tools": agent.tools}
+    chat_agent = _get_agent()
+    return {"tools": await chat_agent.list_tools_async()}
 
 
 @app.delete("/api/sessions/{session_id}")
@@ -299,4 +310,5 @@ async def list_user_sessions(username: str):
 @app.get("/")
 async def health_check():
     """健康检查"""
-    return {"status": "ok", "version": "2.0", "model": model.model_name}
+    return {"status": "ok", "version": "2.0", "model": model.model, "agentscope": "2.0"}
+

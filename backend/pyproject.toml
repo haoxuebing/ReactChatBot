@@ -5,7 +5,7 @@ description = "FastAPI + AgentScope-based LLM chat API with SSE streaming, sessi
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "agentscope>=1.0.20",
+    "agentscope>=2.0.1",
     "fastapi>=0.136.3",
     "uvicorn>=0.48.0",
     "httpx>=0.28.0",

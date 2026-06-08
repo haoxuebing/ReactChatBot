@@ -1,6 +1,9 @@
 import asyncio
 
-from .base_tool import BaseTool
+from agentscope.message import TextBlock
+from agentscope.tool import ToolChunk
+
+from .base_tool import SimpleToolBase
 from .bing_client import search_with_content
 
 
@@ -14,7 +17,7 @@ def _format_results(query: str, results) -> str:
     return "\n\n".join(lines)
 
 
-class WebSearchTool(BaseTool):
+class WebSearchTool(SimpleToolBase):
     """网络搜索工具，使用必应中文搜索引擎"""
 
     name = "web_search"
@@ -23,22 +26,27 @@ class WebSearchTool(BaseTool):
         "天气查询请使用 weather_tool，不要用本工具。"
         "新闻类建议加上年份等具体关键词，如「2026 最新 ...」。"
     )
-    parameters = {
-        "query": {
-            "type": "string",
-            "description": "搜索关键词",
-        }
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "搜索关键词",
+            },
+        },
+        "required": ["query"],
     }
 
-    async def execute(self, **kwargs) -> str:
-        query = kwargs.get("query", "")
+    async def __call__(self, query: str) -> ToolChunk:
         if not query:
-            return "错误：请提供搜索关键词"
+            return ToolChunk(content=[TextBlock(text="错误：请提供搜索关键词")])
 
         try:
             results = await asyncio.to_thread(search_with_content, query, 5, 2)
             if not results:
-                return f"搜索 '{query}' 未找到相关结果"
-            return _format_results(query, results)
+                return ToolChunk(
+                    content=[TextBlock(text=f"搜索 '{query}' 未找到相关结果")],
+                )
+            return ToolChunk(content=[TextBlock(text=_format_results(query, results))])
         except Exception as e:
-            return f"搜索失败：{str(e)}"
+            return ToolChunk(content=[TextBlock(text=f"搜索失败：{str(e)}")])

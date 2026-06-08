@@ -1,26 +1,23 @@
-from abc import ABC, abstractmethod
-from typing import Any, Dict
+from agentscope.permission import (
+    PermissionBehavior,
+    PermissionContext,
+    PermissionDecision,
+)
+from agentscope.tool import ToolBase
 
 
-class BaseTool(ABC):
-    """工具基类，定义工具的基本接口"""
-    
-    name: str
-    description: str
-    parameters: Dict[str, Any]
-    
-    @abstractmethod
-    async def execute(self, **kwargs) -> str:
-        """执行工具并返回结果"""
-        pass
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """将工具转换为模型可理解的格式"""
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            }
-        }
+class SimpleToolBase(ToolBase):
+    """只读/无副作用工具的基类，默认允许执行。"""
+
+    is_concurrency_safe = True
+    is_read_only = True
+
+    async def check_permissions(
+        self,
+        tool_input: dict,
+        context: PermissionContext,
+    ) -> PermissionDecision:
+        return PermissionDecision(
+            behavior=PermissionBehavior.ALLOW,
+            message="",
+        )

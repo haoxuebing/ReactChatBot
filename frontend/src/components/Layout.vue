@@ -509,6 +509,11 @@ function handleClearHistory() {
 }
 
 function upsertThinkingMessage(messages, content) {
+  const lastMsg = messages[messages.length - 1]
+  if (lastMsg?.role === 'thinking') {
+    lastMsg.content = (lastMsg.content || '') + content
+    return
+  }
   messages.push({
     id: `thinking-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     role: 'thinking',
