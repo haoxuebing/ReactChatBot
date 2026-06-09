@@ -94,6 +94,7 @@ model = OpenAIChatModel(
 
 memory_manager = MemoryManager(
     data_dir=os.getenv("MEMORY_DATA_DIR"),
+    memory_round_limit=int(os.getenv("MEMORY_ROUND_LIMIT", "20")),
 )
 
 

@@ -35,12 +35,40 @@ def normalize_username(username: Optional[str]) -> str:
     return (username or "").strip()[:12]
 
 
+def _trim_history_by_rounds(
+    history: list[Dict[str, Any]],
+    round_limit: int,
+) -> list[Dict[str, Any]]:
+    """保留最近 round_limit 轮对话（以 assistant 回复为一轮边界）。"""
+    if round_limit <= 0:
+        return []
+    if not history:
+        return []
+
+    assistant_indices = [
+        i for i, msg in enumerate(history) if msg.get("role") == "assistant"
+    ]
+    if len(assistant_indices) <= round_limit:
+        return list(history)
+
+    cut_index = assistant_indices[-round_limit]
+    start = cut_index
+    while start > 0 and history[start - 1].get("role") == "user":
+        start -= 1
+    return list(history[start:])
+
+
 class MemoryManager:
     """记忆管理器，负责会话级别的记忆管理（文件持久化）"""
 
-    def __init__(self, data_dir: str | Path | None = None):
+    def __init__(
+        self,
+        data_dir: str | Path | None = None,
+        memory_round_limit: int = 20,
+    ):
         if data_dir is None:
             data_dir = Path(__file__).resolve().parent.parent / "data" / "chat_memory"
+        self._memory_round_limit = max(0, memory_round_limit)
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._sessions_dir = self._data_dir / "sessions"
@@ -151,8 +179,9 @@ class MemoryManager:
         backend: FileBackend,
         new_messages: list[Dict[str, Any]],
     ) -> list[Dict[str, Any]]:
-        """构建包含历史记录的完整消息列表"""
+        """构建包含历史记录的完整消息列表（仅注入最近 N 轮历史）"""
         history = await backend.get_history()
+        history = _trim_history_by_rounds(history, self._memory_round_limit)
         result = []
         result.extend(_message_for_llm(m) for m in history)
         result.extend(_message_for_llm(m) for m in new_messages)
