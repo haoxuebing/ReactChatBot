@@ -31,6 +31,34 @@ class FileBackend:
             data = self._read_data()
         return list(data.get("messages", []))
 
+    async def get_history_summary(self) -> Dict[str, Any] | None:
+        with self._lock:
+            data = self._read_data()
+        summary = data.get("history_summary")
+        if not isinstance(summary, dict):
+            return None
+        content = summary.get("content")
+        covers_until_index = summary.get("covers_until_index")
+        if not content or not isinstance(covers_until_index, int):
+            return None
+        return {
+            "content": str(content),
+            "covers_until_index": covers_until_index,
+        }
+
+    async def set_history_summary(
+        self,
+        content: str,
+        covers_until_index: int,
+    ) -> None:
+        with self._lock:
+            data = self._read_data()
+            data["history_summary"] = {
+                "content": content,
+                "covers_until_index": covers_until_index,
+            }
+            self._write_data(data)
+
     async def add_messages(self, messages: List[Dict[str, Any]]) -> None:
         with self._lock:
             data = self._read_data()

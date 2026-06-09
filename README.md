@@ -9,7 +9,7 @@
 - **ReAct 智能体** — 自主思考-行动循环，根据问题自动决定是否调用工具
 - **工具调用** — 内置计算器、日期工具、网络搜索等工具，模型可自主调用
 - **SSE 流式输出** — 实时逐 token 返回，延迟低
-- **会话记忆** — 基于 `session_id` 的多轮对话上下文管理
+- **会话记忆** — 基于 `session_id` 的多轮对话；本地 JSON 完整持久化，请求大模型时注入「早期摘要 + 最近 20 轮完整对话」
 - **OpenAI 兼容格式** — 流式/非流式响应均遵循 OpenAI Chat Completions 格式
 - **System Prompt** — 支持在请求中传入 system 消息
 - **Token 用量统计** — 每轮返回 `usage` 信息
@@ -58,11 +58,19 @@ OPENAPI_URL=/openapi.json
 
 # 可选：聊天记录存储目录，默认为 backend/data/chat_memory
 # MEMORY_DATA_DIR=./data/chat_memory
+
+# 可选：请求大模型时注入的历史轮数上限（以 assistant 回复为一轮），默认 20；设为 0 则不注入历史
+# MEMORY_ROUND_LIMIT=20
+
+# 可选：是否对超出轮数上限的早期历史生成摘要并注入模型，默认开启
+# MEMORY_SUMMARY_ENABLED=true
 ```
 
 > 支持任意 OpenAI 兼容 API（OpenAI、Azure、硅基流动等），只需修改 `base_url` 和 `model_name`。
 >
 > 聊天记录与会话元数据持久化到本地 JSON 文件；Docker Compose 部署时已挂载卷 `chat_memory_data` 防止容器重启后丢失。
+>
+> `MEMORY_ROUND_LIMIT` 与 `MEMORY_SUMMARY_ENABLED` 仅影响发给大模型的上下文，不会截断或删除本地已保存的完整会话记录。
 
 ### 3. 启动后端服务
 
@@ -203,15 +211,15 @@ DOCKER_REGISTRY=docker.1panel.live
 │   │
 │   ├── schemas/
 │   │   ├── __init__.py
-│   │   ├── chat_request.py    # 聊天请求模型（含 AgentConfig）
+│   │   ├── chat_request.py    # 聊天请求模型
 │   │   ├── chat_message.py    # 聊天消息模型
-│   │   └── agent_config.py    # 智能体配置（temperature、memory_limit 等）
+│   │   └── user.py            # 用户名相关请求模型
 │   │
 │   ├── memory/
 │   │   ├── __init__.py
-│   │   ├── memory_manager.py  # 会话级记忆管理器（文件持久化）
-│   │   ├── file_backend.py    # 基于 JSON 文件的聊天记录存储
-│   │   └── in_memory_backend.py # 内存后端（备用）
+│   │   ├── memory_manager.py  # 会话级记忆管理器（文件持久化 + 摘要 + 历史上限）
+│   │   ├── history_summary.py # 早期历史摘要生成与拼接
+│   │   └── file_backend.py    # 基于 JSON 文件的聊天记录存储
 │   │
 │   └── tools/
 │       ├── __init__.py        # 工具注册表
@@ -252,6 +260,25 @@ DOCKER_REGISTRY=docker.1panel.live
 └── README.md
 ```
 
+## 会话记忆
+
+本项目采用**自研的会话级对话历史记忆**（非 AgentScope 内置 `InMemoryMemory`）：
+
+| 维度 | 说明 |
+|---|---|
+| 存储方式 | 本地 JSON 文件（`backend/data/chat_memory/sessions/{session_id}.json`） |
+| 作用范围 | 按 `session_id` 隔离；可选 `username` 绑定会话归属 |
+| 写入策略 | 每轮对话结束后追加 user + assistant 消息，**完整保存，不截断** |
+| 读取策略 | 前端/API 查询会话时返回**完整历史** |
+| 模型上下文 | 超出 `MEMORY_ROUND_LIMIT` 的早期历史生成摘要注入；最近 N 轮以完整对话注入 |
+| 摘要缓存 | 摘要持久化在会话 JSON 的 `history_summary` 字段，支持增量更新，避免每轮重复生成 |
+
+一轮对话以 `assistant` 回复为边界；若同一轮包含连续多条 `user` 消息，会一并保留。
+
+注入模型的消息顺序为：`[用户 system（如有）] → [早期对话摘要 system] → [最近 N 轮完整对话] → [本次新消息]`。
+
+本地记录和前端展示始终保留完整历史；摘要生成失败时会降级为仅注入最近 N 轮完整对话。
+
 ## 接口说明
 
 ### POST /api/chat
@@ -262,18 +289,10 @@ DOCKER_REGISTRY=docker.1panel.live
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `messages` | `list[ChatMessage]` | 必填 | 消息列表 |
+| `messages` | `list[ChatMessage]` | 必填 | 消息列表（前端通常只传当前用户消息） |
 | `stream` | `bool` | `true` | 是否使用 SSE 流式响应 |
 | `session_id` | `str` | `""` | 会话 ID，空则自动生成并返回 |
-| `agent_config` | `AgentConfig` | `{}` | 智能体配置 |
-
-**AgentConfig 字段：**
-
-| 字段 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `enable_tools` | `bool` | `true` | 是否启用工具调用 |
-| `memory_limit` | `int` | `100` | 记忆消息上限 |
-| `temperature` | `float` | `0.7` | 模型温度参数 |
+| `username` | `str` | `""` | 用户名，用于绑定会话归属 |
 
 **ChatMessage 结构：**
 
@@ -286,17 +305,37 @@ DOCKER_REGISTRY=docker.1panel.live
 
 获取所有可用工具列表。
 
+### POST /api/sessions
+
+创建并绑定用户会话。
+
 ### GET /api/sessions
 
-获取所有活跃会话列表（含消息数量）。
+获取活跃会话列表（含消息数量），支持 `?username=` 过滤。
 
 ### GET /api/sessions/{session_id}
 
-获取指定会话的详细信息（含对话历史内容）。
+获取指定会话的详细信息（含完整对话历史）。
+
+### GET /api/sessions/{session_id}/share
+
+获取用于公开分享的会话（脱敏，不含用户名与 IP）。
 
 ### DELETE /api/sessions/{session_id}
 
-删除指定会话。
+软删除指定会话（数据文件保留，不再出现在列表中）。
+
+### POST /api/users
+
+注册用户名。
+
+### GET /api/users
+
+获取所有已注册用户名。
+
+### GET /api/users/{username}/sessions
+
+获取指定用户名下的会话列表。
 
 ### GET /
 
@@ -378,7 +417,7 @@ curl -X POST http://localhost:8000/api/chat \
 
 ### 后端
 - [FastAPI](https://fastapi.tiangolo.com/) — Web 框架
-- [AgentScope](https://github.com/modelscope/agentscope) — 模型封装（OpenAIChatModel）与记忆存储（InMemoryMemory）
+- [AgentScope](https://github.com/modelscope/agentscope) — 模型封装（OpenAIChatModel）与 ReAct 智能体（`Agent` / `Toolkit`）
 - [Uvicorn](https://www.uvicorn.org/) — ASGI 服务器
 - [httpx](https://www.python-httpx.org/) — HTTP 客户端（必应搜索）
 - [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/) — HTML 解析（搜索结果与网页抓取）
@@ -404,9 +443,7 @@ curl -X POST http://localhost:8000/api/chat \
 
 ## 扩展建议
 
-- **持久化记忆**：将 `InMemoryMemory` 替换为 `RedisMemory` 或 `AsyncSQLAlchemyMemory`
-- **分布式部署**：改用共享存储（Redis/数据库）替代进程内 dict 存储 sessions
+- **分布式存储**：将 `FileBackend` 替换为 Redis 或数据库，支持多实例部署共享会话
 - **自定义工具**：继承 `BaseTool` 实现 `execute` 方法，并在 `tools/__init__.py` 中注册
 - **鉴权**：在 `/api/chat` 端点前添加 API Key 校验中间件
-- **对话历史上限**：在 `build_messages_with_history` 中限制返回的历史消息条数，控制 token 消耗
-- **深色主题**：顶部栏右侧提供深色/浅色主题切换按钮，偏好保存在 localStorage
+- **按 token 裁剪**：在 `build_messages_with_history` 中按 token 数而非固定轮数截断历史

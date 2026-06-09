@@ -92,9 +92,18 @@ model = OpenAIChatModel(
     stream=True,
 )
 
+def _env_flag(name: str, default: bool = True) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 memory_manager = MemoryManager(
     data_dir=os.getenv("MEMORY_DATA_DIR"),
     memory_round_limit=int(os.getenv("MEMORY_ROUND_LIMIT", "20")),
+    summary_enabled=_env_flag("MEMORY_SUMMARY_ENABLED", True),
+    summary_model=model,
 )
 
 

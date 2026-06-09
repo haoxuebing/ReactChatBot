@@ -1,10 +1,18 @@
 import json
+import logging
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .file_backend import FileBackend
+from .history_summary import (
+    build_summary_system_message,
+    split_history_by_rounds,
+    summarize_history,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _message_for_llm(msg: Dict[str, Any]) -> Dict[str, str]:
@@ -35,29 +43,6 @@ def normalize_username(username: Optional[str]) -> str:
     return (username or "").strip()[:12]
 
 
-def _trim_history_by_rounds(
-    history: list[Dict[str, Any]],
-    round_limit: int,
-) -> list[Dict[str, Any]]:
-    """保留最近 round_limit 轮对话（以 assistant 回复为一轮边界）。"""
-    if round_limit <= 0:
-        return []
-    if not history:
-        return []
-
-    assistant_indices = [
-        i for i, msg in enumerate(history) if msg.get("role") == "assistant"
-    ]
-    if len(assistant_indices) <= round_limit:
-        return list(history)
-
-    cut_index = assistant_indices[-round_limit]
-    start = cut_index
-    while start > 0 and history[start - 1].get("role") == "user":
-        start -= 1
-    return list(history[start:])
-
-
 class MemoryManager:
     """记忆管理器，负责会话级别的记忆管理（文件持久化）"""
 
@@ -65,10 +50,14 @@ class MemoryManager:
         self,
         data_dir: str | Path | None = None,
         memory_round_limit: int = 20,
+        summary_enabled: bool = True,
+        summary_model: Callable[..., Any] | None = None,
     ):
         if data_dir is None:
             data_dir = Path(__file__).resolve().parent.parent / "data" / "chat_memory"
         self._memory_round_limit = max(0, memory_round_limit)
+        self._summary_enabled = summary_enabled
+        self._summary_model = summary_model
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._sessions_dir = self._data_dir / "sessions"
@@ -174,16 +163,63 @@ class MemoryManager:
             self.bind_session(username, new_id)
         return new_id, self._sessions[new_id]
 
+    async def _resolve_history_summary(
+        self,
+        backend: FileBackend,
+        history: list[Dict[str, Any]],
+        cut_start: int,
+    ) -> str | None:
+        if cut_start <= 0:
+            return None
+        if not self._summary_enabled or self._summary_model is None:
+            return None
+
+        cached = await backend.get_history_summary()
+        try:
+            if cached and cached["covers_until_index"] == cut_start:
+                return cached["content"]
+
+            if cached and cached["covers_until_index"] < cut_start:
+                messages_to_summarize = history[cached["covers_until_index"]:cut_start]
+                summary = await summarize_history(
+                    self._summary_model,
+                    messages_to_summarize,
+                    existing_summary=cached["content"],
+                )
+            else:
+                summary = await summarize_history(
+                    self._summary_model,
+                    history[:cut_start],
+                )
+
+            await backend.set_history_summary(summary, cut_start)
+            return summary
+        except Exception:
+            logger.exception("历史摘要生成失败，将仅使用最近完整对话")
+            return None
+
     async def build_messages_with_history(
         self,
         backend: FileBackend,
         new_messages: list[Dict[str, Any]],
     ) -> list[Dict[str, Any]]:
-        """构建包含历史记录的完整消息列表（仅注入最近 N 轮历史）"""
+        """构建注入模型的消息：早期摘要 + 最近 N 轮完整对话 + 本次新消息。"""
         history = await backend.get_history()
-        history = _trim_history_by_rounds(history, self._memory_round_limit)
-        result = []
-        result.extend(_message_for_llm(m) for m in history)
+        early_history, recent_history = split_history_by_rounds(
+            history,
+            self._memory_round_limit,
+        )
+        result: list[Dict[str, str]] = []
+
+        summary = await self._resolve_history_summary(
+            backend,
+            history,
+            len(early_history),
+        )
+        if summary:
+            result.append(build_summary_system_message(summary))
+
+        result.extend(_message_for_llm(m) for m in recent_history)
         result.extend(_message_for_llm(m) for m in new_messages)
         return result
 
