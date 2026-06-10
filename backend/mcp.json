@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "12306-mcp": {
+            "type": "streamable_http",
+            "url": "https://mcp.api-inference.modelscope.net/010942cc2ce341/mcp",
+            "name": "12306-mcp",
+            "headers": {}
+        },
+        "AI_Go_Hotel_MCP": {
+            "type": "streamable_http",
+            "url": "https://mcp.api-inference.modelscope.net/c6c20c9e758143/mcp"
+        }
+    }
+}
