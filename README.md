@@ -50,12 +50,6 @@ DOCS_URL=/docs
 REDOC_URL=/redoc
 OPENAPI_URL=/openapi.json
 
-# 可选：12306 火车票 MCP（ModelScope Hosted MCP，Remote + Streamable HTTP）
-# MCP_12306_URL=https://mcp.api-inference.modelscope.net/your-token/mcp
-
-# 可选：全球酒店预订 MCP（ModelScope Hosted MCP，Remote + Streamable HTTP）
-# MCP_HOTEL_URL=https://mcp.api-inference.modelscope.net/your-token/mcp
-
 # 可选：聊天记录存储目录，默认为 backend/data/chat_memory
 # MEMORY_DATA_DIR=./data/chat_memory
 
@@ -72,7 +66,38 @@ OPENAPI_URL=/openapi.json
 >
 > `MEMORY_ROUND_LIMIT` 与 `MEMORY_SUMMARY_ENABLED` 仅影响发给大模型的上下文，不会截断或删除本地已保存的完整会话记录。
 
-### 3. 启动后端服务
+### 3. 配置 MCP 服务（可选）
+
+后端启动时会自动读取 `backend/mcp.json` 中的 `mcpServers` 并注册 MCP 工具，无需再通过 `.env` 维护固定的 MCP URL。
+
+```json
+{
+  "mcpServers": {
+    "12306-mcp": {
+      "type": "streamable_http",
+      "url": "https://mcp.api-inference.modelscope.net/your-token/mcp",
+      "headers": {}
+    },
+    "AI_Go_Hotel_MCP": {
+      "type": "streamable_http",
+      "url": "https://mcp.api-inference.modelscope.net/your-token/mcp"
+    }
+  }
+}
+```
+
+当前支持 `streamable_http` 类型。每个服务可配置：
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `type` | 是 | MCP 类型，目前支持 `streamable_http` |
+| `url` | 是 | MCP 服务地址 |
+| `name` | 否 | 注册到 AgentScope 的服务名，默认使用 `mcpServers` 的 key |
+| `headers` | 否 | 请求 MCP 服务时附加的 HTTP headers |
+| `server_kind` | 否 | 业务类型，影响工具参数归一化与结果格式化；未配置时会从服务名推断 `12306` / `hotel` |
+| `execution_timeout` | 否 | 单次工具调用超时时间，默认 `120.0` 秒 |
+
+### 4. 启动后端服务
 
 ```bash
 cd backend
@@ -81,14 +106,14 @@ uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 服务启动后访问 Swagger UI：http://localhost:8000/docs（路径由 `DOCS_URL` 控制，ReDoc 为 `REDOC_URL`）
 
-### 4. 安装前端依赖
+### 5. 安装前端依赖
 
 ```bash
 cd frontend
 npm install
 ```
 
-### 5. 启动前端开发服务器
+### 6. 启动前端开发服务器
 
 ```bash
 cd frontend
@@ -200,6 +225,7 @@ DOCKER_REGISTRY=docker.1panel.live
 .
 ├── backend/                    # 后端代码（FastAPI + AgentScope）
 │   ├── main.py                # FastAPI 应用入口，路由定义
+│   ├── mcp.json               # MCP 服务配置，启动时自动注册
 │   ├── pyproject.toml         # 项目依赖配置
 │   ├── .env                   # 环境变量（API Key 等，不提交）
 │   ├── .python-version
@@ -229,7 +255,8 @@ DOCKER_REGISTRY=docker.1panel.live
 │       ├── web_search_tool.py # 网络搜索工具（必应中文搜索）
 │       ├── weather_tool.py    # 国内天气查询（和风天气）
 │       ├── qweather_client.py # 和风天气 API 客户端
-│       └── bing_client.py     # 必应搜索与网页抓取客户端
+│       ├── bing_client.py     # 必应搜索与网页抓取客户端
+│       └── mcp/               # MCP 客户端加载、增强工具与结果格式化
 │
 ├── frontend/                   # 前端代码（Vue 3 + Vite）
 │   ├── src/
@@ -438,8 +465,8 @@ curl -X POST http://localhost:8000/api/chat \
 | 日期工具 | `date_tool` | 获取当前时间、日期格式化、日期加减、日期差计算 |
 | 天气查询 | `weather_tool` | 国内城市实时天气与逐日预报（和风天气 API） |
 | 网络搜索 | `web_search` | 必应中文搜索，自动抓取 Top 结果正文，无需 API Key |
-| 12306 MCP | `get-tickets` 等 | 火车票/车次/车站查询（需配置 `MCP_12306_URL`） |
-| 酒店 MCP | `searchHotels` 等 | 全球酒店搜索、价格查询与预订（需配置 `MCP_HOTEL_URL`） |
+| 12306 MCP | `get-tickets` 等 | 火车票/车次/车站查询（在 `backend/mcp.json` 配置） |
+| 酒店 MCP | `searchHotels` 等 | 全球酒店搜索、价格查询与预订（在 `backend/mcp.json` 配置） |
 
 ## 扩展建议
 
