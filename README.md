@@ -1,4 +1,4 @@
-# AgentScope Chat API
+# ReactChatBot
 
 基于 FastAPI + AgentScope + Vue 构建的大模型对话应用，支持 **ReAct 智能体**（思考-行动循环）、**工具调用**、**SSE 流式响应**和**会话记忆管理**。
 
