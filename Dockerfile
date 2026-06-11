@@ -42,7 +42,7 @@ COPY --from=frontend-build /app/frontend/dist /usr/share/nginx/html
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/start.sh /start.sh
-RUN chmod +x /start.sh
+RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
 WORKDIR /app/backend
